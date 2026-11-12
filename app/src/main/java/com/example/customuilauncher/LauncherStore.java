@@ -18,6 +18,7 @@ final class LauncherStore {
     private static final String KEY_TILES_PER_ROW = "tiles_per_row";
     private static final String KEY_TODO_SEEDED = "todo_seeded";
     private static final String KEY_TODOS = "todos";
+    private static final String KEY_CLOCK_ZONE = "clock_zone";
     // Previous build stored exactly 3 tasks under these keys; read once for migration.
     private static final String KEY_TODO_TEXT = "todo_text_";
     private static final String KEY_TODO_DONE = "todo_done_";
@@ -82,6 +83,16 @@ final class LauncherStore {
 
     void setTilesPerRow(int n) {
         prefs.edit().putInt(KEY_TILES_PER_ROW, n).apply();
+    }
+
+    /** Time-zone ID (or "device") shown in the header clock, or null if never chosen. */
+    String getClockZone() {
+        return prefs.getString(KEY_CLOCK_ZONE, null);
+    }
+
+    void setClockZone(String zoneId) {
+        if (zoneId == null) prefs.edit().remove(KEY_CLOCK_ZONE).apply();
+        else prefs.edit().putString(KEY_CLOCK_ZONE, zoneId).apply();
     }
 
     // ---- Pins -------------------------------------------------------------------------------

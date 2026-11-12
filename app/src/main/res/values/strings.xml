@@ -1,6 +1,8 @@
 <resources>
     <string name="app_name">customULauncher</string>
-    <string name="start">Himanshu</string>
+    <string name="select_time_zone">Select time zone</string>
+    <string name="device_time_zone">Device time zone</string>
+    <string name="zone_label">%1$s ▾</string>
     <string name="all_apps">Apps</string>
     <string name="show_all_apps">Show all apps</string>
     <string name="hide_all_apps">Hide all apps</string>

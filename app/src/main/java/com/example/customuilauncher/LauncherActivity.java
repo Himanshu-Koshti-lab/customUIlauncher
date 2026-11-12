@@ -37,6 +37,10 @@ import androidx.core.view.WindowInsetsCompat;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
+import java.time.DateTimeException;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -78,6 +82,55 @@ public class LauncherActivity extends AppCompatActivity implements StartAdapter.
     private RecyclerView list;
     private ImageButton toggleAllApps;
     private TextView emptyHint;
+
+    /** Mountain Standard Time, UTC−07:00 all year (Phoenix doesn't observe DST). Default zone. */
+    private static final String MST_ZONE = "America/Phoenix";
+    /** Saved value meaning "follow the device time zone". */
+    private static final String DEVICE_ZONE = "device";
+
+    /** Zones offered in the header picker (the device zone is always offered first). */
+    private static final String[] CLOCK_ZONES = {
+            MST_ZONE,
+            "UTC",
+            "Pacific/Honolulu",
+            "America/Anchorage",
+            "America/Los_Angeles",
+            "America/Denver",
+            "America/Chicago",
+            "America/New_York",
+            "America/Sao_Paulo",
+            "Europe/London",
+            "Europe/Paris",
+            "Europe/Berlin",
+            "Africa/Cairo",
+            "Africa/Johannesburg",
+            "Europe/Moscow",
+            "Asia/Dubai",
+            "Asia/Karachi",
+            "Asia/Kolkata",
+            "Asia/Kathmandu",
+            "Asia/Dhaka",
+            "Asia/Bangkok",
+            "Asia/Singapore",
+            "Asia/Shanghai",
+            "Asia/Tokyo",
+            "Australia/Sydney",
+            "Pacific/Auckland",
+    };
+    private static final DateTimeFormatter CLOCK_FORMAT = DateTimeFormatter.ofPattern("HH:mm");
+
+    private TextView zoneSelect;
+    private TextView clock;
+
+    /** Redraws the clock, then reschedules itself for the start of the next minute. */
+    private final Runnable clockTick = new Runnable() {
+        @Override
+        public void run() {
+            updateClock();
+            long now = System.currentTimeMillis();
+            mainHandler.postDelayed(this, 60_000 - (now % 60_000) + 50);
+        }
+    };
 
     private List<AppInfo> allApps = new ArrayList<>();
     private List<LauncherStore.Pin> pins = new ArrayList<>();
@@ -146,6 +199,11 @@ public class LauncherActivity extends AppCompatActivity implements StartAdapter.
         findViewById(R.id.options).setOnClickListener(this::showOptionsMenu);
         updateToggleUi(false);
 
+        zoneSelect = findViewById(R.id.zone_select);
+        clock = findViewById(R.id.clock);
+        zoneSelect.setOnClickListener(v -> showZonePicker());
+        updateClock();
+
         // A home screen should never close itself on Back.
         getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
             @Override
@@ -168,8 +226,16 @@ public class LauncherActivity extends AppCompatActivity implements StartAdapter.
     }
 
     @Override
+    protected void onResume() {
+        super.onResume();
+        mainHandler.removeCallbacks(clockTick);
+        clockTick.run();
+    }
+
+    @Override
     protected void onPause() {
         super.onPause();
+        mainHandler.removeCallbacks(clockTick);
         if (resizingKey != null) stopResizing();
     }
 
@@ -280,6 +346,64 @@ public class LauncherActivity extends AppCompatActivity implements StartAdapter.
         toggleAllApps.setContentDescription(
                 getString(show ? R.string.hide_all_apps : R.string.show_all_apps));
         toggleAllApps.setTooltipText(toggleAllApps.getContentDescription());
+    }
+
+    // ---- Header clock -------------------------------------------------------------------------
+
+    /** The selected zone; MST until the user picks another one. */
+    private ZoneId clockZone() {
+        String id = store.getClockZone();
+        if (id == null) return ZoneId.of(MST_ZONE);
+        if (DEVICE_ZONE.equals(id)) return ZoneId.systemDefault();
+        try {
+            return ZoneId.of(id);
+        } catch (DateTimeException e) {
+            return ZoneId.of(MST_ZONE);
+        }
+    }
+
+    /** "America/New_York" -> "New York"; the MST zone is shown as "MST". */
+    private static String cityName(ZoneId zone) {
+        String id = zone.getId();
+        if (MST_ZONE.equals(id)) return "MST";
+        return id.substring(id.lastIndexOf('/') + 1).replace('_', ' ');
+    }
+
+    private static String offsetLabel(ZoneId zone) {
+        String offset = ZonedDateTime.now(zone).getOffset().getId();
+        return "UTC" + ("Z".equals(offset) ? "" : offset);
+    }
+
+    private void updateClock() {
+        if (clock == null) return;
+        ZoneId zone = clockZone();
+        clock.setText(ZonedDateTime.now(zone).format(CLOCK_FORMAT));
+        zoneSelect.setText(getString(R.string.zone_label, cityName(zone)));
+    }
+
+    private void showZonePicker() {
+        String saved = store.getClockZone();
+        if (saved == null) saved = MST_ZONE;
+        String[] labels = new String[CLOCK_ZONES.length + 1];
+        ZoneId device = ZoneId.systemDefault();
+        labels[0] = getString(R.string.device_time_zone) + " – " + cityName(device)
+                + "  " + ZonedDateTime.now(device).format(CLOCK_FORMAT);
+        int checked = DEVICE_ZONE.equals(saved) ? 0 : -1;
+        for (int i = 0; i < CLOCK_ZONES.length; i++) {
+            ZoneId zone = ZoneId.of(CLOCK_ZONES[i]);
+            labels[i + 1] = cityName(zone) + " (" + offsetLabel(zone) + ")  "
+                    + ZonedDateTime.now(zone).format(CLOCK_FORMAT);
+            if (CLOCK_ZONES[i].equals(saved)) checked = i + 1;
+        }
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.select_time_zone)
+                .setSingleChoiceItems(labels, checked, (dialog, which) -> {
+                    store.setClockZone(which == 0 ? DEVICE_ZONE : CLOCK_ZONES[which - 1]);
+                    updateClock();
+                    dialog.dismiss();
+                })
+                .setNegativeButton(R.string.cancel, null)
+                .show();
     }
 
     // ---- Options menu -------------------------------------------------------------------------
