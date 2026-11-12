@@ -1,0 +1,73 @@
+# =========================================================================
+#  Android / Gradle project .gitignore
+# =========================================================================
+
+# ---- Secrets & machine-specific config (never commit) --------------------
+# local.properties holds the local SDK path and is often used for API keys.
+local.properties
+**/local.properties
+# Signing keys and their passwords
+*.jks
+*.keystore
+*.p12
+*.pem
+*.key
+keystore.properties
+signing.properties
+# Environment / secret files
+.env
+.env.*
+secrets.properties
+secrets.xml
+# Firebase / Google service configs (contain API keys)
+google-services.json
+GoogleService-Info.plist
+# Play Console / service account credentials
+*service-account*.json
+play-store-credentials.json
+
+# ---- Build output ---------------------------------------------------------
+build/
+**/build/
+/captures
+.externalNativeBuild/
+.cxx/
+*.apk
+*.aab
+*.ap_
+*.dex
+*.class
+output-metadata.json
+# R8 / ProGuard mapping files (reveal original class names)
+mapping.txt
+**/mapping/
+
+# ---- Gradle -----------------------------------------------------------------
+.gradle/
+# Keep the wrapper so others can build
+!gradle/wrapper/gradle-wrapper.jar
+
+# ---- Android Studio / IntelliJ ---------------------------------------------
+*.iml
+*.ipr
+*.iws
+.idea/
+.kotlin/
+# ---- Tests / reports --------------------------------------------------------
+/reports
+test-results/
+*.hprof
+
+# ---- Logs & temp files ------------------------------------------------------
+*.log
+*.tmp
+*.swp
+*~
+
+# ---- OS files ---------------------------------------------------------------
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ---- Claude Code local settings -------------------------------------------
+.claude/settings.local.json

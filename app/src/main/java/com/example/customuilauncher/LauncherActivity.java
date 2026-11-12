@@ -1,0 +1,578 @@
+package com.example.customuilauncher;
+
+import android.app.ActivityOptions;
+import android.app.role.RoleManager;
+import android.content.ActivityNotFoundException;
+import android.content.Intent;
+import android.content.pm.LauncherApps;
+import android.graphics.Rect;
+import android.net.Uri;
+import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
+import android.os.UserHandle;
+import android.provider.Settings;
+import android.text.InputType;
+import android.view.Menu;
+import android.view.View;
+import android.view.WindowManager;
+import android.view.inputmethod.EditorInfo;
+import android.widget.EditText;
+import android.widget.FrameLayout;
+import android.widget.ImageButton;
+import android.widget.PopupMenu;
+import android.widget.TextView;
+import android.widget.Toast;
+
+import androidx.activity.OnBackPressedCallback;
+import androidx.activity.result.ActivityResult;
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
+import androidx.annotation.NonNull;
+import androidx.appcompat.app.AlertDialog;
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.graphics.Insets;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowInsetsCompat;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+
+/**
+ * Windows 8 style home screen: a to-do tile and pinned app tiles (drag-resizable),
+ * plus a top-right toggle that shows/hides all apps.
+ */
+public class LauncherActivity extends AppCompatActivity implements StartAdapter.Listener {
+
+    private static final int MENU_PIN = 1;
+    private static final int MENU_UNPIN = 2;
+    private static final int MENU_RESIZE = 3;
+    private static final int MENU_MOVE_FRONT = 4;
+    private static final int MENU_APP_INFO = 5;
+    private static final int MENU_UNINSTALL = 6;
+    private static final int MENU_GROUP_TILES = 1;
+    private static final int MENU_SHOW_TODO = 99;
+    private static final int MENU_DEFAULT_HOME = 100;
+    private static final int MENU_REMOVE_DEFAULT_HOME = 101;
+
+    private final ActivityResultLauncher<Intent> homeRoleRequest = registerForActivityResult(
+            new ActivityResultContracts.StartActivityForResult(), this::onHomeRoleResult);
+
+    private final ExecutorService loader = Executors.newSingleThreadExecutor();
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
+
+    private LauncherStore store;
+    private AppRepository repository;
+    private LauncherApps launcherApps;
+    private StartAdapter adapter;
+
+    private RecyclerView list;
+    private ImageButton toggleAllApps;
+    private TextView emptyHint;
+
+    private List<AppInfo> allApps = new ArrayList<>();
+    private List<LauncherStore.Pin> pins = new ArrayList<>();
+    private List<LauncherStore.Todo> todos = new ArrayList<>();
+    private boolean appsLoaded;
+    /** Pin key of the tile currently in resize mode, or null. */
+    private String resizingKey;
+
+    /** Reload when apps are installed, removed or updated. */
+    private final LauncherApps.Callback packageCallback = new LauncherApps.Callback() {
+        @Override
+        public void onPackageRemoved(String packageName, UserHandle user) {
+            loadApps();
+        }
+
+        @Override
+        public void onPackageAdded(String packageName, UserHandle user) {
+            loadApps();
+        }
+
+        @Override
+        public void onPackageChanged(String packageName, UserHandle user) {
+            loadApps();
+        }
+
+        @Override
+        public void onPackagesAvailable(String[] packageNames, UserHandle user, boolean replacing) {
+            loadApps();
+        }
+
+        @Override
+        public void onPackagesUnavailable(String[] packageNames, UserHandle user, boolean replacing) {
+            loadApps();
+        }
+    };
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_launcher);
+
+        store = new LauncherStore(this);
+        repository = new AppRepository(this);
+        launcherApps = getSystemService(LauncherApps.class);
+        todos = store.loadTodos();
+
+        View root = findViewById(R.id.root);
+        list = findViewById(R.id.start_grid);
+        toggleAllApps = findViewById(R.id.toggle_all_apps);
+        emptyHint = findViewById(R.id.empty_hint);
+
+        // Edge-to-edge is enforced on API 35+, so keep content clear of the system bars.
+        ViewCompat.setOnApplyWindowInsetsListener(root, (v, insets) -> {
+            Insets bars = insets.getInsets(WindowInsetsCompat.Type.systemBars()
+                    | WindowInsetsCompat.Type.displayCutout());
+            v.setPadding(bars.left, bars.top, bars.right, bars.bottom);
+            return WindowInsetsCompat.CONSUMED;
+        });
+
+        adapter = new StartAdapter(this, store.getTilesPerRow());
+        list.setLayoutManager(new LinearLayoutManager(this));
+        list.setAdapter(adapter);
+        list.setItemAnimator(null); // the tile grid rebinds in place; avoid cross-fade flicker
+
+        toggleAllApps.setOnClickListener(v -> setShowAllApps(!store.isShowAllApps()));
+        findViewById(R.id.options).setOnClickListener(this::showOptionsMenu);
+        updateToggleUi(false);
+
+        // A home screen should never close itself on Back.
+        getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
+            @Override
+            public void handleOnBackPressed() {
+                if (resizingKey != null) stopResizing();
+                else list.smoothScrollToPosition(0);
+            }
+        });
+
+        launcherApps.registerCallback(packageCallback, mainHandler);
+        loadApps();
+    }
+
+    @Override
+    protected void onNewIntent(@NonNull Intent intent) {
+        super.onNewIntent(intent);
+        // Home pressed while already on Start: leave resize mode and scroll back to the top.
+        if (resizingKey != null) stopResizing();
+        if (list != null) list.smoothScrollToPosition(0);
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        if (resizingKey != null) stopResizing();
+    }
+
+    @Override
+    protected void onDestroy() {
+        launcherApps.unregisterCallback(packageCallback);
+        loader.shutdownNow();
+        super.onDestroy();
+    }
+
+    // ---- Data ---------------------------------------------------------------------------------
+
+    private void loadApps() {
+        if (loader.isShutdown()) return;
+        loader.execute(() -> {
+            List<AppInfo> apps = repository.loadApps();
+            List<LauncherStore.Pin> seeded = store.hasSavedPins() ? null : repository.defaultPins(apps);
+            mainHandler.post(() -> {
+                if (isDestroyed()) return;
+                allApps = apps;
+                pins = seeded != null ? seeded : store.loadPins();
+                // Add the to-do tile at the top once (first run, or upgrade from an older build).
+                if (!store.isTodoSeeded()) {
+                    if (!containsTodo()) pins.add(0, newTodoPin());
+                    store.setTodoSeeded();
+                    store.savePins(pins);
+                } else if (seeded != null) {
+                    store.savePins(pins);
+                }
+                appsLoaded = true;
+                render();
+            });
+        });
+    }
+
+    private LauncherStore.Pin newTodoPin() {
+        int columns = store.getTilesPerRow();
+        // Full width; tall enough for 3 tasks on smaller cells.
+        return new LauncherStore.Pin(LauncherStore.TODO_KEY, columns, columns <= 2 ? 1 : 2);
+    }
+
+    private boolean containsTodo() {
+        for (LauncherStore.Pin p : pins) if (p.isTodo()) return true;
+        return false;
+    }
+
+    private Map<String, AppInfo> appsByKey() {
+        Map<String, AppInfo> map = new HashMap<>();
+        for (AppInfo app : allApps) map.put(app.key(), app);
+        return map;
+    }
+
+    /** Rebuild the Start screen from pins, to-dos and toggle state. */
+    private void render() {
+        Map<String, AppInfo> byKey = appsByKey();
+
+        // Drop pins whose app was uninstalled.
+        boolean pruned = false;
+        for (Iterator<LauncherStore.Pin> it = pins.iterator(); it.hasNext(); ) {
+            LauncherStore.Pin pin = it.next();
+            if (!pin.isTodo() && !byKey.containsKey(pin.key)) {
+                it.remove();
+                pruned = true;
+            }
+        }
+        if (pruned) store.savePins(pins);
+
+        Set<String> pinnedKeys = new HashSet<>();
+        for (LauncherStore.Pin pin : pins) pinnedKeys.add(pin.key);
+
+        List<StartAdapter.Item> items = new ArrayList<>();
+        if (!pins.isEmpty()) items.add(StartAdapter.Item.grid());
+
+        boolean showAll = store.isShowAllApps();
+        if (showAll) {
+            items.add(StartAdapter.Item.header(getString(R.string.all_apps)));
+            for (AppInfo app : allApps) {
+                items.add(StartAdapter.Item.appRow(app, pinnedKeys.contains(app.key())));
+            }
+        }
+
+        adapter.submit(items, pins, byKey, todos, resizingKey);
+        emptyHint.setVisibility(appsLoaded && pins.isEmpty() && !showAll ? View.VISIBLE : View.GONE);
+    }
+
+    // ---- Top-right toggle -----------------------------------------------------------------------
+
+    private void setShowAllApps(boolean show) {
+        store.setShowAllApps(show);
+        updateToggleUi(true);
+        render();
+        if (show) {
+            int header = adapter.headerPosition();
+            if (header >= 0) list.post(() -> list.smoothScrollToPosition(header));
+        } else {
+            list.scrollToPosition(0);
+        }
+    }
+
+    private void updateToggleUi(boolean animate) {
+        boolean show = store.isShowAllApps();
+        float rotation = show ? 180f : 0f;
+        if (animate) {
+            toggleAllApps.animate().rotation(rotation).setDuration(200).start();
+        } else {
+            toggleAllApps.setRotation(rotation);
+        }
+        toggleAllApps.setContentDescription(
+                getString(show ? R.string.hide_all_apps : R.string.show_all_apps));
+        toggleAllApps.setTooltipText(toggleAllApps.getContentDescription());
+    }
+
+    // ---- Options menu -------------------------------------------------------------------------
+
+    private void showOptionsMenu(View anchor) {
+        PopupMenu popup = new PopupMenu(this, anchor);
+        Menu menu = popup.getMenu();
+        int current = store.getTilesPerRow();
+        for (int n = LauncherStore.MIN_TILES_PER_ROW; n <= LauncherStore.MAX_TILES_PER_ROW; n++) {
+            // Item id == tile count, so the click handler can use it directly.
+            menu.add(MENU_GROUP_TILES, n, n, getString(R.string.tiles_per_row, n))
+                    .setChecked(n == current);
+        }
+        menu.setGroupCheckable(MENU_GROUP_TILES, true, true);
+
+        if (!containsTodo()) {
+            menu.add(Menu.NONE, MENU_SHOW_TODO, 9, R.string.show_todo_tile);
+        }
+
+        if (isDefaultHome()) {
+            menu.add(Menu.NONE, MENU_REMOVE_DEFAULT_HOME, 10, R.string.remove_default_home);
+        } else {
+            menu.add(Menu.NONE, MENU_DEFAULT_HOME, 10, R.string.set_default_home);
+        }
+
+        popup.setOnMenuItemClickListener(menuItem -> {
+            int id = menuItem.getItemId();
+            if (id == MENU_DEFAULT_HOME) {
+                requestDefaultHome();
+            } else if (id == MENU_REMOVE_DEFAULT_HOME) {
+                removeDefaultHome();
+            } else if (id == MENU_SHOW_TODO) {
+                pins.add(0, newTodoPin());
+                store.savePins(pins);
+                render();
+                list.scrollToPosition(0);
+            } else {
+                setTilesPerRow(id);
+            }
+            return true;
+        });
+        popup.show();
+    }
+
+    private void setTilesPerRow(int n) {
+        if (n == store.getTilesPerRow()) return;
+        store.setTilesPerRow(n);
+        adapter.setTilesPerRow(n);
+        render();
+    }
+
+    // ---- Default home app ---------------------------------------------------------------------
+
+    private boolean isDefaultHome() {
+        RoleManager roleManager = getSystemService(RoleManager.class);
+        return roleManager != null && roleManager.isRoleHeld(RoleManager.ROLE_HOME);
+    }
+
+    /** Ask the system to make us the home app; fall back to the Settings screen if needed. */
+    private void requestDefaultHome() {
+        RoleManager roleManager = getSystemService(RoleManager.class);
+        if (roleManager != null && roleManager.isRoleAvailable(RoleManager.ROLE_HOME)) {
+            try {
+                homeRoleRequest.launch(roleManager.createRequestRoleIntent(RoleManager.ROLE_HOME));
+                return;
+            } catch (ActivityNotFoundException ignored) {
+                // fall through to Settings
+            }
+        }
+        openHomeSettings();
+    }
+
+    private void onHomeRoleResult(ActivityResult result) {
+        if (isDefaultHome()) {
+            Toast.makeText(this, getString(R.string.default_home_set, getString(R.string.app_name)),
+                    Toast.LENGTH_SHORT).show();
+        } else {
+            // Dialog dismissed, or the system stopped showing it after repeated denials.
+            openHomeSettings();
+        }
+    }
+
+    /**
+     * Android doesn't let an app give up the home role itself, so open the system
+     * "Default home app" screen where the user can pick another launcher.
+     */
+    private void removeDefaultHome() {
+        Toast.makeText(this, getString(R.string.pick_other_home, getString(R.string.app_name)),
+                Toast.LENGTH_LONG).show();
+        openHomeSettings();
+    }
+
+    private void openHomeSettings() {
+        try {
+            startActivity(new Intent(Settings.ACTION_HOME_SETTINGS));
+        } catch (ActivityNotFoundException e) {
+            startActivity(new Intent(Settings.ACTION_SETTINGS));
+        }
+    }
+
+    // ---- Tile resizing ------------------------------------------------------------------------
+
+    private void startResizing(String key) {
+        resizingKey = key;
+        render();
+    }
+
+    private void stopResizing() {
+        resizingKey = null;
+        store.savePins(pins);
+        render();
+    }
+
+    @Override
+    public void onTapWhileResizing() {
+        stopResizing();
+    }
+
+    @Override
+    public void onResizeFinished(LauncherStore.Pin pin) {
+        store.savePins(pins); // pin was updated in place by the grid
+    }
+
+    // ---- To-dos -------------------------------------------------------------------------------
+
+    @Override
+    public void onTodoToggled(int index, boolean done) {
+        todos.set(index, new LauncherStore.Todo(todos.get(index).text, done));
+        store.saveTodos(todos);
+    }
+
+    @Override
+    public void onTodoAdd() {
+        showTodoDialog(-1);
+    }
+
+    @Override
+    public void onTodoEdit(int index) {
+        showTodoDialog(index);
+    }
+
+    @Override
+    public void onTodoDelete(int index) {
+        todos.remove(index);
+        store.saveTodos(todos);
+        render();
+    }
+
+    /** Add (index == -1) or edit a task. */
+    private void showTodoDialog(int index) {
+        boolean adding = index < 0;
+        String oldText = adding ? "" : todos.get(index).text;
+
+        EditText input = new EditText(this);
+        input.setText(oldText);
+        input.setSelection(oldText.length());
+        input.setHint(R.string.todo_hint);
+        input.setSingleLine(true);
+        input.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
+        input.setImeOptions(EditorInfo.IME_ACTION_DONE);
+
+        FrameLayout container = new FrameLayout(this);
+        int pad = Math.round(20 * getResources().getDisplayMetrics().density);
+        container.setPadding(pad, pad / 2, pad, 0);
+        container.addView(input);
+
+        AlertDialog.Builder builder = new AlertDialog.Builder(this)
+                .setTitle(adding ? R.string.todo_add : R.string.todo_edit_title)
+                .setView(container)
+                .setPositiveButton(R.string.save, (d, w) -> saveTodoText(index, input.getText().toString()))
+                .setNegativeButton(R.string.cancel, null);
+        if (!adding) builder.setNeutralButton(R.string.delete, (d, w) -> onTodoDelete(index));
+        AlertDialog dialog = builder.create();
+
+        input.setOnEditorActionListener((v, actionId, event) -> {
+            if (actionId == EditorInfo.IME_ACTION_DONE) {
+                saveTodoText(index, input.getText().toString());
+                dialog.dismiss();
+                return true;
+            }
+            return false;
+        });
+
+        if (dialog.getWindow() != null) {
+            dialog.getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_VISIBLE);
+        }
+        dialog.show();
+        input.requestFocus();
+    }
+
+    /** Save a new (index == -1) or edited task. Saving empty text deletes an existing task. */
+    private void saveTodoText(int index, String rawText) {
+        String text = rawText.trim();
+        if (index < 0) {
+            if (text.isEmpty()) return;
+            todos.add(new LauncherStore.Todo(text, false));
+            adapter.scrollTodosToEndOnce();
+        } else if (text.isEmpty()) {
+            todos.remove(index);
+        } else {
+            LauncherStore.Todo old = todos.get(index);
+            // Keep the done state only if the task itself didn't change.
+            todos.set(index, new LauncherStore.Todo(text, text.equals(old.text) && old.done));
+        }
+        store.saveTodos(todos);
+        render();
+    }
+
+    // ---- Tile / row actions -------------------------------------------------------------------
+
+    @Override
+    public void onOpen(AppInfo app, View view) {
+        Rect bounds = new Rect();
+        view.getGlobalVisibleRect(bounds);
+        Bundle options = ActivityOptions.makeClipRevealAnimation(
+                view, 0, 0, view.getWidth(), view.getHeight()).toBundle();
+        try {
+            launcherApps.startMainActivity(app.component, app.user, bounds, options);
+        } catch (RuntimeException e) { // ActivityNotFoundException, SecurityException
+            Toast.makeText(this, getString(R.string.launch_failed, app.label), Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    @Override
+    public void onTileLongPress(LauncherStore.Pin pin, AppInfo app, View view) {
+        PopupMenu popup = new PopupMenu(this, view);
+        Menu menu = popup.getMenu();
+        menu.add(Menu.NONE, MENU_RESIZE, 0, R.string.resize);
+        menu.add(Menu.NONE, MENU_MOVE_FRONT, 1, R.string.move_to_front);
+        menu.add(Menu.NONE, MENU_UNPIN, 2, app == null ? R.string.hide_todo_tile : R.string.unpin_from_start);
+        if (app != null) {
+            menu.add(Menu.NONE, MENU_APP_INFO, 3, R.string.app_info);
+            menu.add(Menu.NONE, MENU_UNINSTALL, 4, R.string.uninstall);
+        }
+        popup.setOnMenuItemClickListener(menuItem -> {
+            handleMenu(menuItem.getItemId(), pin.key, app);
+            return true;
+        });
+        popup.show();
+    }
+
+    @Override
+    public void onRowLongPress(AppInfo app, boolean pinned, View view) {
+        PopupMenu popup = new PopupMenu(this, view);
+        Menu menu = popup.getMenu();
+        menu.add(Menu.NONE, pinned ? MENU_UNPIN : MENU_PIN, 0,
+                pinned ? R.string.unpin_from_start : R.string.pin_to_start);
+        menu.add(Menu.NONE, MENU_APP_INFO, 1, R.string.app_info);
+        menu.add(Menu.NONE, MENU_UNINSTALL, 2, R.string.uninstall);
+        popup.setOnMenuItemClickListener(menuItem -> {
+            handleMenu(menuItem.getItemId(), app.key(), app);
+            return true;
+        });
+        popup.show();
+    }
+
+    /** @param app null for the to-do tile */
+    private void handleMenu(int id, String key, AppInfo app) {
+        switch (id) {
+            case MENU_PIN:
+                pins.add(new LauncherStore.Pin(key, 1, 1));
+                break;
+            case MENU_UNPIN:
+                pins.removeIf(p -> p.key.equals(key));
+                if (key.equals(resizingKey)) resizingKey = null;
+                break;
+            case MENU_RESIZE:
+                startResizing(key);
+                return;
+            case MENU_MOVE_FRONT:
+                for (int i = 0; i < pins.size(); i++) {
+                    if (pins.get(i).key.equals(key)) {
+                        LauncherStore.Pin pin = pins.remove(i);
+                        // The to-do tile stays on top unless it's the one being moved.
+                        int at = (!pin.isTodo() && !pins.isEmpty() && pins.get(0).isTodo()) ? 1 : 0;
+                        pins.add(at, pin);
+                        break;
+                    }
+                }
+                break;
+            case MENU_APP_INFO:
+                if (app != null) launcherApps.startAppDetailsActivity(app.component, app.user, null, null);
+                return;
+            case MENU_UNINSTALL:
+                if (app != null) {
+                    startActivity(new Intent(Intent.ACTION_DELETE,
+                            Uri.fromParts("package", app.component.getPackageName(), null)));
+                }
+                return; // the package callback re-renders after removal
+            default:
+                return;
+        }
+        store.savePins(pins);
+        render();
+    }
+}

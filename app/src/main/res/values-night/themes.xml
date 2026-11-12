@@ -1,0 +1,17 @@
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- The launcher is always dark; keep night mode identical to the base theme. -->
+    <style name="Theme.CustomUIlauncher" parent="Theme.MaterialComponents.NoActionBar">
+        <item name="colorPrimary">@color/metro_accent</item>
+        <item name="colorPrimaryVariant">@color/metro_accent</item>
+        <item name="colorOnPrimary">@color/white</item>
+        <item name="colorSecondary">@color/metro_accent</item>
+        <item name="colorSecondaryVariant">@color/metro_accent</item>
+        <item name="colorOnSecondary">@color/white</item>
+        <item name="android:windowBackground">@color/metro_background</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
+        <!-- No grey scrim behind the system bars: keep them pure black on AMOLED. -->
+        <item name="android:enforceNavigationBarContrast">false</item>
+        <item name="android:enforceStatusBarContrast">false</item>
+    </style>
+</resources>

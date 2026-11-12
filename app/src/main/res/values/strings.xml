@@ -1,0 +1,34 @@
+<resources>
+    <string name="app_name">customULauncher</string>
+    <string name="start">Himanshu</string>
+    <string name="all_apps">Apps</string>
+    <string name="show_all_apps">Show all apps</string>
+    <string name="hide_all_apps">Hide all apps</string>
+    <string name="empty_start">No tiles pinned yet.\nTap the arrow at the top right to show all apps, then long-press an app to pin it to Start.</string>
+    <string name="pin_to_start">Pin to Start</string>
+    <string name="unpin_from_start">Unpin from Start</string>
+    <string name="resize">Resize (drag corner)</string>
+    <string name="resize_handle">Drag to resize tile</string>
+    <string name="todo_title">To-do</string>
+    <string name="todo_hint">Task</string>
+    <string name="todo_add">Add task</string>
+    <string name="todo_empty">No tasks. Tap + to add one.</string>
+    <string name="todo_edit_title">Edit task</string>
+    <string name="todo_mark_done">Mark %1$s done</string>
+    <string name="todo_delete">Delete %1$s</string>
+    <string name="save">Save</string>
+    <string name="cancel">Cancel</string>
+    <string name="delete">Delete</string>
+    <string name="hide_todo_tile">Remove to-do tile</string>
+    <string name="show_todo_tile">Show to-do tile</string>
+    <string name="move_to_front">Move to front</string>
+    <string name="app_info">App info</string>
+    <string name="uninstall">Uninstall</string>
+    <string name="options">Options</string>
+    <string name="tiles_per_row">Tiles per row: %1$d</string>
+    <string name="set_default_home">Set as default home app</string>
+    <string name="remove_default_home">Remove as default home app</string>
+    <string name="default_home_set">%1$s is now your home app</string>
+    <string name="pick_other_home">Choose another home app to stop using %1$s</string>
+    <string name="launch_failed">Couldn\'t open %1$s</string>
+</resources>
