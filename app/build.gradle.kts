@@ -3,13 +3,13 @@ plugins {
 }
 
 android {
-    namespace = "com.example.customuilauncher"
+    namespace = "com.doom.launcher"
     compileSdk {
         version = release(37)
     }
 
     defaultConfig {
-        applicationId = "com.example.customuilauncher"
+        applicationId = "com.doom.launcher"
         minSdk = 34
         targetSdk = 37
         versionCode = 3

@@ -1,4 +1,4 @@
-package com.example.customuilauncher;
+package com.doom.launcher;
 
 import android.graphics.PointF;
 import android.view.View;

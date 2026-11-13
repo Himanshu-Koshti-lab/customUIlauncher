@@ -1,4 +1,4 @@
-package com.example.customuilauncher;
+package com.doom.launcher;
 
 import android.app.ActivityOptions;
 import android.app.role.RoleManager;

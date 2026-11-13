@@ -91,7 +91,7 @@
 
         <!-- "#" + letters fast-scroll index (only characters that have apps). Always shown; touching it reveals
              the app list. Sits in the list's end padding. -->
-        <com.example.customuilauncher.AlphabetScrollBar
+        <com.doom.launcher.AlphabetScrollBar
             android:id="@+id/alphabet_bar"
             android:layout_width="24dp"
             android:layout_height="match_parent"

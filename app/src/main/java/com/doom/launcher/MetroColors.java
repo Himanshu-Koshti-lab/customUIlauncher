@@ -1,4 +1,4 @@
-package com.example.customuilauncher;
+package com.doom.launcher;
 
 /** Windows 8 accent colors; each app gets a stable one based on its package name. */
 final class MetroColors {

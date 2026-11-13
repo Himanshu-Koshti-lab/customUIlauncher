@@ -1,4 +1,4 @@
-package com.example.customuilauncher;
+package com.doom.launcher;
 
 import android.content.Context;
 
@@ -21,6 +21,6 @@ public class ExampleInstrumentedTest {
     public void useAppContext() {
         // Context of the app under test.
         Context appContext = InstrumentationRegistry.getInstrumentation().getTargetContext();
-        assertEquals("com.example.customuilauncher", appContext.getPackageName());
+        assertEquals("com.doom.launcher", appContext.getPackageName());
     }
 }

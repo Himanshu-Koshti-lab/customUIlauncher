@@ -1,4 +1,4 @@
-package com.example.customuilauncher;
+package com.doom.launcher;
 
 import android.content.Context;
 import android.content.Intent;
