@@ -8,6 +8,7 @@
 
     <!-- Header: time-zone picker + 24h clock on the left, options menu on the top right. -->
     <LinearLayout
+        android:id="@+id/header"
         android:layout_width="match_parent"
         android:layout_height="80dp"
         android:gravity="center_vertical"

@@ -2,6 +2,20 @@
 
 A Windows 8 / Metro-style home screen launcher for Android.
 
+## What's new in 1.0.2
+
+- **Cinematic tile zoom when opening an app** – tap a tile and Start rushes past the camera:
+  the tapped tile swells while every other tile enlarges, fades and is pushed outward from it
+  in a ripple.
+- **Zoom-out when returning home** – coming back from any app reverses the effect. The tile you
+  launched from settles first, as if the app shrinks back into it, then the rest of Start
+  (tiles, header and index bar) glides into place, nearest first.
+- **Android 14 support** – the minimum version is now Android 14 (API 34), down from 15.
+- **New app icon** – the Doom Launcher rocket logo replaces the default Android icon.
+
+Android 14+ uses its own window transition when an app opens or closes; the zoom effects play
+on Start's tiles together with it.
+
 ## What's new in 1.0.1
 
 - **Alphabet index bar** on the right edge of Start. It lists only the characters your apps
@@ -35,7 +49,7 @@ A Windows 8 / Metro-style home screen launcher for Android.
 
 ## Requirements
 
-- Android 15 (API 35) or newer
+- Android 14 (API 34) or newer
 - Android Studio with JDK 17+
 
 ## Build & run
@@ -54,6 +68,7 @@ the **circle button → Set as default**.
 |------|---------|
 | `LauncherActivity.java` | Home screen, header clock, menus, to-dos |
 | `StartAdapter.java` / `TileGridLayout.java` | Tile grid and app list rendering |
+| `TileZoomAnimator.java` | Per-tile zoom when launching apps and returning home |
 | `AppRepository.java` | Loads installed launchable apps |
 | `LauncherStore.java` | Persists pins, to-dos and settings |
 | `MetroColors.java` | Tile colours |

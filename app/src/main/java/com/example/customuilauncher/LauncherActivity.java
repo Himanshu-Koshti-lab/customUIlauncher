@@ -5,6 +5,8 @@ import android.app.role.RoleManager;
 import android.content.ActivityNotFoundException;
 import android.content.Intent;
 import android.content.pm.LauncherApps;
+import android.graphics.Color;
+import android.graphics.PointF;
 import android.graphics.Rect;
 import android.net.Uri;
 import android.os.Bundle;
@@ -14,6 +16,7 @@ import android.os.UserHandle;
 import android.provider.Settings;
 import android.text.InputType;
 import android.view.Menu;
+import android.os.PowerManager;
 import android.view.View;
 import android.view.WindowManager;
 import android.view.inputmethod.EditorInfo;
@@ -23,16 +26,20 @@ import android.widget.PopupMenu;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import androidx.activity.EdgeToEdge;
 import androidx.activity.OnBackPressedCallback;
+import androidx.activity.SystemBarStyle;
 import androidx.activity.result.ActivityResult;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
+import androidx.lifecycle.Lifecycle;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
@@ -79,6 +86,13 @@ public class LauncherActivity extends AppCompatActivity implements StartAdapter.
     private LauncherApps launcherApps;
     private StartAdapter adapter;
 
+    private View root;
+    /** Set when we leave the foreground for another app, so returning home can animate in. */
+    private boolean returnFromApp;
+    private View header;
+    private final TileZoomAnimator tileZoom = new TileZoomAnimator();
+    /** Centre of the tile/row an app was last opened from, in window coordinates. */
+    @Nullable private PointF lastLaunchPoint;
     private RecyclerView list;
     /** Whether the app list is shown below the tiles. Hidden on launch; the index bar reveals it. */
     private boolean showAllApps;
@@ -174,6 +188,10 @@ public class LauncherActivity extends AppCompatActivity implements StartAdapter.
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        // Draw behind transparent system bars. API 35+ enforces this anyway; on Android 14 it
+        // has to be requested, otherwise the bars get the theme's accent colour.
+        EdgeToEdge.enable(this,
+                SystemBarStyle.dark(Color.TRANSPARENT), SystemBarStyle.dark(Color.TRANSPARENT));
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_launcher);
 
@@ -182,13 +200,14 @@ public class LauncherActivity extends AppCompatActivity implements StartAdapter.
         launcherApps = getSystemService(LauncherApps.class);
         todos = store.loadTodos();
 
-        View root = findViewById(R.id.root);
+        root = findViewById(R.id.root);
+        header = findViewById(R.id.header);
         list = findViewById(R.id.start_grid);
         emptyHint = findViewById(R.id.empty_hint);
         alphabetBar = findViewById(R.id.alphabet_bar);
         sectionPreview = findViewById(R.id.section_preview);
 
-        // Edge-to-edge is enforced on API 35+, so keep content clear of the system bars.
+        // We draw edge-to-edge, so keep content clear of the system bars.
         ViewCompat.setOnApplyWindowInsetsListener(root, (v, insets) -> {
             Insets bars = insets.getInsets(WindowInsetsCompat.Type.systemBars()
                     | WindowInsetsCompat.Type.displayCutout());
@@ -242,6 +261,60 @@ public class LauncherActivity extends AppCompatActivity implements StartAdapter.
         if (showAllApps) hideAllApps();
         else if (list != null) list.smoothScrollToPosition(0);
     }
+
+    @Override
+    protected void onStart() {
+        super.onStart();
+        if (returnFromApp) {
+            returnFromApp = false;
+            // Keep Start hidden until the system's return transition actually begins, which is when
+            // our window regains focus; the timeout covers the case where focus never arrives.
+            root.setAlpha(0f);
+            mainHandler.postDelayed(returnHomeAnimation, RETURN_HOME_MAX_WAIT_MS);
+        }
+    }
+
+    @Override
+    public void onWindowFocusChanged(boolean hasFocus) {
+        super.onWindowFocusChanged(hasFocus);
+        if (hasFocus && mainHandler.hasCallbacks(returnHomeAnimation)) {
+            mainHandler.removeCallbacks(returnHomeAnimation);
+            returnHomeAnimation.run();
+        }
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+        // Only animate when coming back from an app, not when the screen turns back on.
+        returnFromApp = getSystemService(PowerManager.class).isInteractive();
+        // Never leave Start stuck mid-zoom, e.g. if the screen turns off during the animation.
+        mainHandler.removeCallbacks(returnHomeAnimation);
+        mainHandler.removeCallbacks(settleIfLaunchStalled);
+        tileZoom.cancel();
+        root.setAlpha(1f);
+    }
+
+    private static final long RETURN_HOME_MAX_WAIT_MS = 300;
+    /** If Start is still visible this long after zooming past for a launch, bring it back. */
+    private static final long LAUNCH_STALL_MS = 800;
+
+    /** Per-tile zoom-out ripple, centred on the tile the user last launched an app from. */
+    private final Runnable returnHomeAnimation = () -> {
+        tileZoom.settle(list, lastLaunchPoint, header, alphabetBar);
+        lastLaunchPoint = null;
+        root.setAlpha(1f);
+    };
+
+    /**
+     * The launched app didn't cover Start (it's translucent, or the launch silently failed), so
+     * don't leave the home screen blank behind it.
+     */
+    private final Runnable settleIfLaunchStalled = () -> {
+        if (tileZoom.isAway() && getLifecycle().getCurrentState().isAtLeast(Lifecycle.State.STARTED)) {
+            tileZoom.settle(list, lastLaunchPoint, header, alphabetBar);
+        }
+    };
 
     @Override
     protected void onResume() {
@@ -650,10 +723,18 @@ public class LauncherActivity extends AppCompatActivity implements StartAdapter.
     public void onOpen(AppInfo app, View view) {
         Rect bounds = new Rect();
         view.getGlobalVisibleRect(bounds);
-        Bundle options = ActivityOptions.makeClipRevealAnimation(
+        int[] loc = new int[2];
+        view.getLocationInWindow(loc);
+        lastLaunchPoint = new PointF(loc[0] + view.getWidth() / 2f, loc[1] + view.getHeight() / 2f);
+        // Start zooms past the camera from the tapped tile. Where the system honours it, the app
+        // also zooms up out of the tile; newer Android versions substitute their own transition.
+        Bundle options = ActivityOptions.makeScaleUpAnimation(
                 view, 0, 0, view.getWidth(), view.getHeight()).toBundle();
         try {
             launcherApps.startMainActivity(app.component, app.user, bounds, options);
+            tileZoom.zoomPast(list, lastLaunchPoint, header, alphabetBar);
+            mainHandler.removeCallbacks(settleIfLaunchStalled);
+            mainHandler.postDelayed(settleIfLaunchStalled, LAUNCH_STALL_MS);
         } catch (RuntimeException e) { // ActivityNotFoundException, SecurityException
             Toast.makeText(this, getString(R.string.launch_failed, app.label), Toast.LENGTH_SHORT).show();
         }
