@@ -2,6 +2,13 @@
 
 A Windows 8 / Metro-style home screen launcher for Android.
 
+<p>
+  <img src="docs/screenshots/1.0.3-start.png" width="200" alt="Start screen with tiles, the to-do tile and the index bar on the right">
+  <img src="docs/screenshots/1.0.3-index-bar.png" width="200" alt="Dragging the index bar to F highlights the apps starting with F">
+  <img src="docs/screenshots/1.0.3-options-menu.png" width="200" alt="Options menu opened from the circle button">
+  <img src="docs/screenshots/1.0.3-tiles-per-row.png" width="200" alt="Tiles per row drop-down with 2, 3 and 4 tiles; 4 is selected">
+</p>
+
 ## What's new in 1.0.3
 
 - **Tiles per row drop-down** – the options menu now has a single **Tiles per row: N ▾** entry
@@ -35,12 +42,6 @@ on Start's tiles together with it.
   separate show/hide arrow button is gone.
 - **New options button** – the menu now opens from the circle-chevron button at the top right.
 - App renamed to **Doom Launcher**.
-
-<p>
-  <img src="docs/screenshots/1.0.1-start.png" width="250" alt="Start screen with the index bar on the right">
-  <img src="docs/screenshots/1.0.1-index-bar.png" width="250" alt="Dragging the index bar to F highlights the apps starting with F">
-  <img src="docs/screenshots/1.0.1-options-menu.png" width="250" alt="Options menu opened from the circle button">
-</p>
 
 ## Features
 
