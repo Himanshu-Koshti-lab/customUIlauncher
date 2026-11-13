@@ -2,6 +2,15 @@
 
 A Windows 8 / Metro-style home screen launcher for Android.
 
+## What's new in 1.0.3
+
+- **Tiles per row drop-down** – the options menu now has a single **Tiles per row: N ▾** entry
+  instead of three separate items. Tap it to choose 2, 3 or 4 tiles; the current choice is checked.
+- **New package name: `com.doom.launcher`** (was `com.example.customuilauncher`). Android treats
+  this as a new app: it installs alongside the old one rather than updating it, and pinned
+  tiles, to-dos and settings start fresh. Set Doom Launcher as the home app again, then
+  uninstall the old version.
+
 ## What's new in 1.0.2
 
 - **Cinematic tile zoom when opening an app** – tap a tile and Start rushes past the camera:
@@ -44,8 +53,9 @@ on Start's tiles together with it.
   Long-press an app to pin it, open App info, or uninstall.
 - **World clock header** – the header shows a time-zone selector (default **MST**) with the
   current time beside it in 24-hour format. Tap the zone to pick another one; the choice is saved.
-- **Options menu** (circle button, top right) – choose 2, 3 or 4 tiles per row, restore the to-do tile, and set or
-  remove the launcher as the default home app.
+- **Options menu** (circle button, top right) – pick 2, 3 or 4 tiles per row from the
+  **Tiles per row ▾** drop-down, restore the to-do tile, and set or remove the launcher as the
+  default home app.
 
 ## Requirements
 
