@@ -25,7 +25,8 @@
     <string name="app_info">App info</string>
     <string name="uninstall">Uninstall</string>
     <string name="options">Options</string>
-    <string name="tiles_per_row">Tiles per row: %1$d</string>
+    <string name="tiles_per_row">Tiles per row: %1$d ▾</string>
+    <string name="tiles_per_row_option">%1$d tiles</string>
     <string name="set_default_home">Set as default</string>
     <string name="remove_default_home">Remove as default app</string>
     <string name="default_home_set">%1$s is now your home app</string>

@@ -71,6 +71,7 @@ public class LauncherActivity extends AppCompatActivity implements StartAdapter.
     private static final int MENU_APP_INFO = 5;
     private static final int MENU_UNINSTALL = 6;
     private static final int MENU_GROUP_TILES = 1;
+    private static final int MENU_TILES_PER_ROW = 98;
     private static final int MENU_SHOW_TODO = 99;
     private static final int MENU_DEFAULT_HOME = 100;
     private static final int MENU_REMOVE_DEFAULT_HOME = 101;
@@ -516,13 +517,9 @@ public class LauncherActivity extends AppCompatActivity implements StartAdapter.
     private void showOptionsMenu(View anchor) {
         PopupMenu popup = new PopupMenu(this, anchor);
         Menu menu = popup.getMenu();
-        int current = store.getTilesPerRow();
-        for (int n = LauncherStore.MIN_TILES_PER_ROW; n <= LauncherStore.MAX_TILES_PER_ROW; n++) {
-            // Item id == tile count, so the click handler can use it directly.
-            menu.add(MENU_GROUP_TILES, n, n, getString(R.string.tiles_per_row, n))
-                    .setChecked(n == current);
-        }
-        menu.setGroupCheckable(MENU_GROUP_TILES, true, true);
+        // One "Tiles per row: N ▾" entry; tapping it drops down the choices.
+        menu.add(Menu.NONE, MENU_TILES_PER_ROW, 0,
+                getString(R.string.tiles_per_row, store.getTilesPerRow()));
 
         if (!containsTodo()) {
             menu.add(Menu.NONE, MENU_SHOW_TODO, 9, R.string.show_todo_tile);
@@ -536,7 +533,9 @@ public class LauncherActivity extends AppCompatActivity implements StartAdapter.
 
         popup.setOnMenuItemClickListener(menuItem -> {
             int id = menuItem.getItemId();
-            if (id == MENU_DEFAULT_HOME) {
+            if (id == MENU_TILES_PER_ROW) {
+                showTilesPerRowMenu(anchor);
+            } else if (id == MENU_DEFAULT_HOME) {
                 requestDefaultHome();
             } else if (id == MENU_REMOVE_DEFAULT_HOME) {
                 removeDefaultHome();
@@ -545,9 +544,25 @@ public class LauncherActivity extends AppCompatActivity implements StartAdapter.
                 store.savePins(pins);
                 render();
                 list.scrollToPosition(0);
-            } else {
-                setTilesPerRow(id);
             }
+            return true;
+        });
+        popup.show();
+    }
+
+    /** Drop-down of tile counts, current one checked. */
+    private void showTilesPerRowMenu(View anchor) {
+        PopupMenu popup = new PopupMenu(this, anchor);
+        Menu menu = popup.getMenu();
+        int current = store.getTilesPerRow();
+        for (int n = LauncherStore.MIN_TILES_PER_ROW; n <= LauncherStore.MAX_TILES_PER_ROW; n++) {
+            // Item id == tile count, so the click handler can use it directly.
+            menu.add(MENU_GROUP_TILES, n, n, getString(R.string.tiles_per_row_option, n))
+                    .setChecked(n == current);
+        }
+        menu.setGroupCheckable(MENU_GROUP_TILES, true, true);
+        popup.setOnMenuItemClickListener(item -> {
+            setTilesPerRow(item.getItemId());
             return true;
         });
         popup.show();
