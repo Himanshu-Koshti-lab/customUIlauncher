@@ -1,7 +1,9 @@
 package com.example.customuilauncher;
 
 import android.annotation.SuppressLint;
+import android.content.Context;
 import android.graphics.Paint;
+import android.graphics.Typeface;
 import android.view.LayoutInflater;
 import android.view.MotionEvent;
 import android.view.View;
@@ -87,6 +89,8 @@ final class StartAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
     private String resizingKey;
     private int tilesPerRow;
     private boolean scrollTodosToEnd;
+    /** Index section whose apps are highlighted, or null. */
+    private String highlightSection;
 
     /** On the next bind, scroll the task list to the bottom (after adding a task). */
     void scrollTodosToEndOnce() {
@@ -110,6 +114,17 @@ final class StartAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         this.todos = todos;
         this.resizingKey = resizingKey;
         notifyDataSetChanged();
+    }
+
+    /**
+     * Highlight the app rows whose name starts with {@code section} (see
+     * {@link AlphabetScrollBar#sectionFor}) and dim the rest; null clears the highlight.
+     */
+    void setHighlightSection(String section) {
+        if (java.util.Objects.equals(section, highlightSection)) return;
+        highlightSection = section;
+        int header = headerPosition();
+        if (header >= 0) notifyItemRangeChanged(header + 1, items.size() - header - 1);
     }
 
     /** Index of the "Apps" header, or -1 when the app list is hidden. */
@@ -355,6 +370,13 @@ final class StartAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
             icon.setImageDrawable(item.app.newIcon());
             label.setText(item.app.label);
             pinned.setVisibility(item.pinned ? View.VISIBLE : View.GONE);
+
+            boolean match = highlightSection != null
+                    && highlightSection.equals(AlphabetScrollBar.sectionFor(item.app.label));
+            Context context = itemView.getContext();
+            label.setTextColor(context.getColor(match ? R.color.metro_accent : R.color.white));
+            label.setTypeface(null, match ? Typeface.BOLD : Typeface.NORMAL);
+            itemView.setAlpha(highlightSection == null || match ? 1f : 0.45f);
             itemView.setOnClickListener(v -> {
                 if (resizingKey != null) listener.onTapWhileResizing();
                 else listener.onOpen(item.app, v);

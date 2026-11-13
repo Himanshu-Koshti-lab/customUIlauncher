@@ -19,7 +19,6 @@ import android.view.WindowManager;
 import android.view.inputmethod.EditorInfo;
 import android.widget.EditText;
 import android.widget.FrameLayout;
-import android.widget.ImageButton;
 import android.widget.PopupMenu;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -48,6 +47,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -80,8 +80,13 @@ public class LauncherActivity extends AppCompatActivity implements StartAdapter.
     private StartAdapter adapter;
 
     private RecyclerView list;
-    private ImageButton toggleAllApps;
+    /** Whether the app list is shown below the tiles. Hidden on launch; the index bar reveals it. */
+    private boolean showAllApps;
     private TextView emptyHint;
+    private AlphabetScrollBar alphabetBar;
+    private TextView sectionPreview;
+    /** First list position of each index section ("#", A-Z) that has apps; sorted, "#" first. */
+    private final TreeMap<String, Integer> sectionPositions = new TreeMap<>();
 
     /** Mountain Standard Time, UTC−07:00 all year (Phoenix doesn't observe DST). Default zone. */
     private static final String MST_ZONE = "America/Phoenix";
@@ -179,8 +184,9 @@ public class LauncherActivity extends AppCompatActivity implements StartAdapter.
 
         View root = findViewById(R.id.root);
         list = findViewById(R.id.start_grid);
-        toggleAllApps = findViewById(R.id.toggle_all_apps);
         emptyHint = findViewById(R.id.empty_hint);
+        alphabetBar = findViewById(R.id.alphabet_bar);
+        sectionPreview = findViewById(R.id.section_preview);
 
         // Edge-to-edge is enforced on API 35+, so keep content clear of the system bars.
         ViewCompat.setOnApplyWindowInsetsListener(root, (v, insets) -> {
@@ -195,9 +201,19 @@ public class LauncherActivity extends AppCompatActivity implements StartAdapter.
         list.setAdapter(adapter);
         list.setItemAnimator(null); // the tile grid rebinds in place; avoid cross-fade flicker
 
-        toggleAllApps.setOnClickListener(v -> setShowAllApps(!store.isShowAllApps()));
+        alphabetBar.setListener(new AlphabetScrollBar.Listener() {
+            @Override
+            public void onSectionSelected(String section) {
+                jumpToSection(section);
+            }
+
+            @Override
+            public void onSectionReleased() {
+                sectionPreview.setVisibility(View.GONE);
+            }
+        });
+
         findViewById(R.id.options).setOnClickListener(this::showOptionsMenu);
-        updateToggleUi(false);
 
         zoneSelect = findViewById(R.id.zone_select);
         clock = findViewById(R.id.clock);
@@ -209,6 +225,7 @@ public class LauncherActivity extends AppCompatActivity implements StartAdapter.
             @Override
             public void handleOnBackPressed() {
                 if (resizingKey != null) stopResizing();
+                else if (showAllApps) hideAllApps();
                 else list.smoothScrollToPosition(0);
             }
         });
@@ -220,9 +237,10 @@ public class LauncherActivity extends AppCompatActivity implements StartAdapter.
     @Override
     protected void onNewIntent(@NonNull Intent intent) {
         super.onNewIntent(intent);
-        // Home pressed while already on Start: leave resize mode and scroll back to the top.
+        // Home pressed while already on Start: leave resize mode, hide the app list, go to the top.
         if (resizingKey != null) stopResizing();
-        if (list != null) list.smoothScrollToPosition(0);
+        if (showAllApps) hideAllApps();
+        else if (list != null) list.smoothScrollToPosition(0);
     }
 
     @Override
@@ -309,43 +327,57 @@ public class LauncherActivity extends AppCompatActivity implements StartAdapter.
         List<StartAdapter.Item> items = new ArrayList<>();
         if (!pins.isEmpty()) items.add(StartAdapter.Item.grid());
 
-        boolean showAll = store.isShowAllApps();
-        if (showAll) {
-            items.add(StartAdapter.Item.header(getString(R.string.all_apps)));
-            for (AppInfo app : allApps) {
-                items.add(StartAdapter.Item.appRow(app, pinnedKeys.contains(app.key())));
+        boolean showAll = showAllApps;
+        if (showAll) items.add(StartAdapter.Item.header(getString(R.string.all_apps)));
+
+        // The index bar lists every section that has apps, whether or not the list is shown.
+        sectionPositions.clear();
+        for (AppInfo app : allApps) {
+            String section = AlphabetScrollBar.sectionFor(app.label);
+            if (section != null && !sectionPositions.containsKey(section)) {
+                sectionPositions.put(section, showAll ? items.size() : -1);
             }
+            if (showAll) items.add(StartAdapter.Item.appRow(app, pinnedKeys.contains(app.key())));
         }
 
         adapter.submit(items, pins, byKey, todos, resizingKey);
+        alphabetBar.setSections(new ArrayList<>(sectionPositions.keySet()));
+        alphabetBar.setVisibility(sectionPositions.isEmpty() ? View.GONE : View.VISIBLE);
         emptyHint.setVisibility(appsLoaded && pins.isEmpty() && !showAll ? View.VISIBLE : View.GONE);
     }
 
-    // ---- Top-right toggle -----------------------------------------------------------------------
+    // ---- Alphabet index -----------------------------------------------------------------------
 
-    private void setShowAllApps(boolean show) {
-        store.setShowAllApps(show);
-        updateToggleUi(true);
-        render();
-        if (show) {
-            int header = adapter.headerPosition();
-            if (header >= 0) list.post(() -> list.smoothScrollToPosition(header));
-        } else {
-            list.scrollToPosition(0);
+    /**
+     * Reveal the app list if it's hidden, scroll so the first app under {@code section} is at
+     * the top, and highlight that section's apps.
+     */
+    private void jumpToSection(String section) {
+        sectionPreview.setText(section);
+        sectionPreview.setVisibility(View.VISIBLE);
+
+        boolean needsRender = !showAllApps || resizingKey != null;
+        if (resizingKey != null) {
+            resizingKey = null;
+            store.savePins(pins);
         }
+        if (needsRender) {
+            showAllApps = true;
+            render(); // also fills in the list position of each section
+        }
+        adapter.setHighlightSection(section);
+
+        Integer position = sectionPositions.get(section);
+        if (position == null || position < 0) return;
+        ((LinearLayoutManager) list.getLayoutManager()).scrollToPositionWithOffset(position, 0);
     }
 
-    private void updateToggleUi(boolean animate) {
-        boolean show = store.isShowAllApps();
-        float rotation = show ? 180f : 0f;
-        if (animate) {
-            toggleAllApps.animate().rotation(rotation).setDuration(200).start();
-        } else {
-            toggleAllApps.setRotation(rotation);
-        }
-        toggleAllApps.setContentDescription(
-                getString(show ? R.string.hide_all_apps : R.string.show_all_apps));
-        toggleAllApps.setTooltipText(toggleAllApps.getContentDescription());
+    /** Hide the app list (opened from the index bar) and go back to the top of Start. */
+    private void hideAllApps() {
+        showAllApps = false;
+        adapter.setHighlightSection(null);
+        render();
+        list.scrollToPosition(0);
     }
 
     // ---- Header clock -------------------------------------------------------------------------

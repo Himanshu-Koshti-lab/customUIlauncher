@@ -6,7 +6,7 @@
     android:background="@color/metro_background"
     android:orientation="vertical">
 
-    <!-- Header: time-zone picker + 24h clock on the left, all-apps toggle on the top right. -->
+    <!-- Header: time-zone picker + 24h clock on the left, options menu on the top right. -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="80dp"
@@ -50,22 +50,13 @@
         </LinearLayout>
 
         <ImageButton
-            android:id="@+id/toggle_all_apps"
-            android:layout_width="56dp"
-            android:layout_height="56dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:contentDescription="@string/show_all_apps"
-            android:scaleType="center"
-            android:src="@drawable/ic_all_apps" />
-
-        <ImageButton
             android:id="@+id/options"
-            android:layout_width="40dp"
+            android:layout_width="56dp"
             android:layout_height="56dp"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:contentDescription="@string/options"
             android:scaleType="center"
-            android:src="@drawable/ic_more" />
+            android:src="@drawable/ic_options" />
     </LinearLayout>
 
     <FrameLayout
@@ -95,6 +86,31 @@
             android:text="@string/empty_start"
             android:textColor="@color/metro_text_secondary"
             android:textSize="18sp"
+            android:visibility="gone" />
+
+        <!-- "#" + letters fast-scroll index (only characters that have apps). Always shown; touching it reveals
+             the app list. Sits in the list's end padding. -->
+        <com.example.customuilauncher.AlphabetScrollBar
+            android:id="@+id/alphabet_bar"
+            android:layout_width="24dp"
+            android:layout_height="match_parent"
+            android:layout_gravity="end"
+            android:paddingTop="8dp"
+            android:paddingBottom="8dp"
+            android:visibility="gone" />
+
+        <!-- Large preview of the character under the finger while dragging the index. -->
+        <TextView
+            android:id="@+id/section_preview"
+            android:layout_width="88dp"
+            android:layout_height="88dp"
+            android:layout_gravity="center"
+            android:background="@color/metro_accent"
+            android:fontFamily="sans-serif-light"
+            android:gravity="center"
+            android:importantForAccessibility="no"
+            android:textColor="@color/white"
+            android:textSize="48sp"
             android:visibility="gone" />
     </FrameLayout>
 </LinearLayout>

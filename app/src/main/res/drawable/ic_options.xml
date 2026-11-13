@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Windows 8.1 style "all apps" button: chevron inside a circle. -->
+<!-- Options menu button: Windows 8.1 style chevron inside a circle. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="36dp"
     android:height="36dp"

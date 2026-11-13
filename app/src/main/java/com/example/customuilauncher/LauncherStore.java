@@ -14,7 +14,6 @@ import java.util.List;
 final class LauncherStore {
     private static final String PREFS = "launcher";
     private static final String KEY_PINS = "pins";
-    private static final String KEY_SHOW_ALL = "show_all_apps";
     private static final String KEY_TILES_PER_ROW = "tiles_per_row";
     private static final String KEY_TODO_SEEDED = "todo_seeded";
     private static final String KEY_TODOS = "todos";
@@ -66,14 +65,6 @@ final class LauncherStore {
     }
 
     // ---- Settings ---------------------------------------------------------------------------
-
-    boolean isShowAllApps() {
-        return prefs.getBoolean(KEY_SHOW_ALL, false);
-    }
-
-    void setShowAllApps(boolean show) {
-        prefs.edit().putBoolean(KEY_SHOW_ALL, show).apply();
-    }
 
     /** Number of 1×1 tiles that fit in one row (2, 3 or 4). */
     int getTilesPerRow() {
