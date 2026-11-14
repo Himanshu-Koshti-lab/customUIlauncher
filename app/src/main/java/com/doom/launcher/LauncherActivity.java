@@ -70,6 +70,7 @@ public class LauncherActivity extends AppCompatActivity implements StartAdapter.
     private static final int MENU_MOVE_FRONT = 4;
     private static final int MENU_APP_INFO = 5;
     private static final int MENU_UNINSTALL = 6;
+    private static final int MENU_GRAYSCALE = 7;
     private static final int MENU_GROUP_TILES = 1;
     private static final int MENU_TILES_PER_ROW = 98;
     private static final int MENU_SHOW_TODO = 99;
@@ -761,10 +762,13 @@ public class LauncherActivity extends AppCompatActivity implements StartAdapter.
         Menu menu = popup.getMenu();
         menu.add(Menu.NONE, MENU_RESIZE, 0, R.string.resize);
         menu.add(Menu.NONE, MENU_MOVE_FRONT, 1, R.string.move_to_front);
-        menu.add(Menu.NONE, MENU_UNPIN, 2, app == null ? R.string.hide_todo_tile : R.string.unpin_from_start);
+        menu.add(Menu.NONE, MENU_GRAYSCALE, 2, R.string.grayscale_tile)
+                .setCheckable(true)
+                .setChecked(pin.grayscale);
+        menu.add(Menu.NONE, MENU_UNPIN, 3, app == null ? R.string.hide_todo_tile : R.string.unpin_from_start);
         if (app != null) {
-            menu.add(Menu.NONE, MENU_APP_INFO, 3, R.string.app_info);
-            menu.add(Menu.NONE, MENU_UNINSTALL, 4, R.string.uninstall);
+            menu.add(Menu.NONE, MENU_APP_INFO, 4, R.string.app_info);
+            menu.add(Menu.NONE, MENU_UNINSTALL, 5, R.string.uninstall);
         }
         popup.setOnMenuItemClickListener(menuItem -> {
             handleMenu(menuItem.getItemId(), pin.key, app);
@@ -810,6 +814,11 @@ public class LauncherActivity extends AppCompatActivity implements StartAdapter.
                         pins.add(at, pin);
                         break;
                     }
+                }
+                break;
+            case MENU_GRAYSCALE:
+                for (LauncherStore.Pin pin : pins) {
+                    if (pin.key.equals(key)) pin.grayscale = !pin.grayscale;
                 }
                 break;
             case MENU_APP_INFO:

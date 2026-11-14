@@ -46,7 +46,7 @@ on Start's tiles together with it.
 ## Features
 
 - **Live tile grid** – pin apps to Start as tiles; long-press a tile to resize it
-  (drag the corner), move it to the front, or unpin it.
+  (drag the corner), move it to the front, switch it to **Grayscale**, or unpin it.
 - **To-do tile** – a built-in tile for quick tasks: add, edit, check off and delete.
 - **All apps** – the app list below the tiles is hidden by default. Touch or drag the
   **index bar** on the right edge (`#` for digits, then only the letters that have apps) to

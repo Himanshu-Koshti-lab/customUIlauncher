@@ -21,6 +21,7 @@
     <string name="delete">Delete</string>
     <string name="hide_todo_tile">Remove to-do tile</string>
     <string name="show_todo_tile">Show to-do tile</string>
+    <string name="grayscale_tile">Grayscale</string>
     <string name="move_to_front">Move to front</string>
     <string name="app_info">App info</string>
     <string name="uninstall">Uninstall</string>
