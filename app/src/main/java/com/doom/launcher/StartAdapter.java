@@ -2,6 +2,8 @@ package com.doom.launcher;
 
 import android.annotation.SuppressLint;
 import android.content.Context;
+import android.graphics.ColorMatrix;
+import android.graphics.ColorMatrixColorFilter;
 import android.graphics.Paint;
 import android.graphics.Typeface;
 import android.view.LayoutInflater;
@@ -89,6 +91,8 @@ final class StartAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
     private String resizingKey;
     private int tilesPerRow;
     private boolean scrollTodosToEnd;
+    /** Draw every tile in shades of gray. */
+    private boolean grayscale;
     /** Index section whose apps are highlighted, or null. */
     private String highlightSection;
 
@@ -104,6 +108,10 @@ final class StartAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
 
     void setTilesPerRow(int tilesPerRow) {
         this.tilesPerRow = tilesPerRow;
+    }
+
+    void setGrayscale(boolean grayscale) {
+        this.grayscale = grayscale;
     }
 
     void submit(List<Item> items, List<LauncherStore.Pin> pins, Map<String, AppInfo> apps,
@@ -191,12 +199,16 @@ final class StartAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
             grid.setColumns(tilesPerRow);
             grid.clearTiles();
             for (LauncherStore.Pin pin : pins) {
+                View tile;
                 if (pin.isTodo()) {
-                    grid.addTile(createTodoTile(inflater, pin), pin);
+                    tile = createTodoTile(inflater, pin);
                 } else {
                     AppInfo app = apps.get(pin.key);
-                    if (app != null) grid.addTile(createAppTile(inflater, pin, app), pin);
+                    if (app == null) continue;
+                    tile = createAppTile(inflater, pin, app);
                 }
+                if (grayscale) applyGrayscale(tile);
+                grid.addTile(tile, pin);
             }
             grid.setEditingKey(resizingKey);
         }
@@ -332,6 +344,18 @@ final class StartAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
             }
             return false; // let NestedScrollView handle the scrolling itself
         });
+    }
+
+    /**
+     * Desaturate the whole tile (background, icon, text) by drawing it through a hardware layer
+     * whose paint has a zero-saturation color filter.
+     */
+    private static void applyGrayscale(View tile) {
+        ColorMatrix matrix = new ColorMatrix();
+        matrix.setSaturation(0f);
+        Paint paint = new Paint();
+        paint.setColorFilter(new ColorMatrixColorFilter(matrix));
+        tile.setLayerType(View.LAYER_TYPE_HARDWARE, paint);
     }
 
     private static void applyDoneStyle(TextView text, boolean done) {

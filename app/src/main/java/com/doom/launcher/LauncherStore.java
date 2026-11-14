@@ -18,6 +18,7 @@ final class LauncherStore {
     private static final String KEY_TODO_SEEDED = "todo_seeded";
     private static final String KEY_TODOS = "todos";
     private static final String KEY_CLOCK_ZONE = "clock_zone";
+    private static final String KEY_GRAYSCALE_TILES = "grayscale_tiles";
     // Previous build stored exactly 3 tasks under these keys; read once for migration.
     private static final String KEY_TODO_TEXT = "todo_text_";
     private static final String KEY_TODO_DONE = "todo_done_";
@@ -74,6 +75,15 @@ final class LauncherStore {
 
     void setTilesPerRow(int n) {
         prefs.edit().putInt(KEY_TILES_PER_ROW, n).apply();
+    }
+
+    /** Whether all Start tiles are drawn in shades of gray. Off by default. */
+    boolean isGrayscaleTiles() {
+        return prefs.getBoolean(KEY_GRAYSCALE_TILES, false);
+    }
+
+    void setGrayscaleTiles(boolean grayscale) {
+        prefs.edit().putBoolean(KEY_GRAYSCALE_TILES, grayscale).apply();
     }
 
     /** Time-zone ID (or "device") shown in the header clock, or null if never chosen. */

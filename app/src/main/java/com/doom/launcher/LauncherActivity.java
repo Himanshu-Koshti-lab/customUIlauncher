@@ -71,6 +71,7 @@ public class LauncherActivity extends AppCompatActivity implements StartAdapter.
     private static final int MENU_APP_INFO = 5;
     private static final int MENU_UNINSTALL = 6;
     private static final int MENU_GROUP_TILES = 1;
+    private static final int MENU_GRAYSCALE_TILES = 97;
     private static final int MENU_TILES_PER_ROW = 98;
     private static final int MENU_SHOW_TODO = 99;
     private static final int MENU_DEFAULT_HOME = 100;
@@ -217,6 +218,7 @@ public class LauncherActivity extends AppCompatActivity implements StartAdapter.
         });
 
         adapter = new StartAdapter(this, store.getTilesPerRow());
+        adapter.setGrayscale(store.isGrayscaleTiles());
         list.setLayoutManager(new LinearLayoutManager(this));
         list.setAdapter(adapter);
         list.setItemAnimator(null); // the tile grid rebinds in place; avoid cross-fade flicker
@@ -520,6 +522,9 @@ public class LauncherActivity extends AppCompatActivity implements StartAdapter.
         // One "Tiles per row: N ▾" entry; tapping it drops down the choices.
         menu.add(Menu.NONE, MENU_TILES_PER_ROW, 0,
                 getString(R.string.tiles_per_row, store.getTilesPerRow()));
+        menu.add(Menu.NONE, MENU_GRAYSCALE_TILES, 1, R.string.grayscale_tiles)
+                .setCheckable(true)
+                .setChecked(store.isGrayscaleTiles());
 
         if (!containsTodo()) {
             menu.add(Menu.NONE, MENU_SHOW_TODO, 9, R.string.show_todo_tile);
@@ -535,6 +540,11 @@ public class LauncherActivity extends AppCompatActivity implements StartAdapter.
             int id = menuItem.getItemId();
             if (id == MENU_TILES_PER_ROW) {
                 showTilesPerRowMenu(anchor);
+            } else if (id == MENU_GRAYSCALE_TILES) {
+                boolean grayscale = !store.isGrayscaleTiles();
+                store.setGrayscaleTiles(grayscale);
+                adapter.setGrayscale(grayscale);
+                render();
             } else if (id == MENU_DEFAULT_HOME) {
                 requestDefaultHome();
             } else if (id == MENU_REMOVE_DEFAULT_HOME) {

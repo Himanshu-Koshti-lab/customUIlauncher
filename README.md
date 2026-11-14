@@ -55,7 +55,7 @@ on Start's tiles together with it.
 - **World clock header** – the header shows a time-zone selector (default **MST**) with the
   current time beside it in 24-hour format. Tap the zone to pick another one; the choice is saved.
 - **Options menu** (circle button, top right) – pick 2, 3 or 4 tiles per row from the
-  **Tiles per row ▾** drop-down, restore the to-do tile, and set or remove the launcher as the
+  **Tiles per row ▾** drop-down, turn **Grayscale tiles** on or off for all tiles, restore the to-do tile, and set or remove the launcher as the
   default home app.
 
 ## Requirements
