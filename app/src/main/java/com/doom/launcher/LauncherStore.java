@@ -18,6 +18,7 @@ final class LauncherStore {
     private static final String KEY_TODO_SEEDED = "todo_seeded";
     private static final String KEY_TODOS = "todos";
     private static final String KEY_CLOCK_ZONE = "clock_zone";
+    private static final String KEY_GRAYSCALE_TILES = "grayscale_tiles";
     // Previous build stored exactly 3 tasks under these keys; read once for migration.
     private static final String KEY_TODO_TEXT = "todo_text_";
     private static final String KEY_TODO_DONE = "todo_done_";
@@ -36,8 +37,6 @@ final class LauncherStore {
         final String key;
         int cols;
         int rows;
-        /** Draw the tile (background, icon and label) in shades of gray. */
-        boolean grayscale;
 
         Pin(String key, int cols, int rows) {
             this.key = key;
@@ -78,6 +77,15 @@ final class LauncherStore {
         prefs.edit().putInt(KEY_TILES_PER_ROW, n).apply();
     }
 
+    /** Whether all Start tiles are drawn in shades of gray. Off by default. */
+    boolean isGrayscaleTiles() {
+        return prefs.getBoolean(KEY_GRAYSCALE_TILES, false);
+    }
+
+    void setGrayscaleTiles(boolean grayscale) {
+        prefs.edit().putBoolean(KEY_GRAYSCALE_TILES, grayscale).apply();
+    }
+
     /** Time-zone ID (or "device") shown in the header clock, or null if never chosen. */
     String getClockZone() {
         return prefs.getString(KEY_CLOCK_ZONE, null);
@@ -104,20 +112,15 @@ final class LauncherStore {
         prefs.edit().putBoolean(KEY_TODO_SEEDED, true).apply();
     }
 
-    /**
-     * Format per line: {@code key|cols|rows}, plus {@code |g} for a grayscale tile.
-     * Older builds stored {@code key|W} or {@code key|M}.
-     */
+    /** Format per line: {@code key|cols|rows}. Older builds stored {@code key|W} or {@code key|M}. */
     List<Pin> loadPins() {
         List<Pin> pins = new ArrayList<>();
         String raw = prefs.getString(KEY_PINS, "");
         for (String line : raw.split("\n")) {
             String[] parts = line.split("\\|");
-            if (parts.length == 3 || parts.length == 4) {
+            if (parts.length == 3) {
                 try {
-                    Pin pin = new Pin(parts[0], Integer.parseInt(parts[1]), Integer.parseInt(parts[2]));
-                    pin.grayscale = parts.length == 4 && "g".equals(parts[3]);
-                    pins.add(pin);
+                    pins.add(new Pin(parts[0], Integer.parseInt(parts[1]), Integer.parseInt(parts[2])));
                 } catch (NumberFormatException ignored) {
                     // skip corrupt entry
                 }
@@ -133,7 +136,6 @@ final class LauncherStore {
         for (Pin pin : pins) {
             if (sb.length() > 0) sb.append('\n');
             sb.append(pin.key).append('|').append(pin.cols).append('|').append(pin.rows);
-            if (pin.grayscale) sb.append("|g");
         }
         prefs.edit().putString(KEY_PINS, sb.toString()).apply();
     }

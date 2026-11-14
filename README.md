@@ -46,7 +46,7 @@ on Start's tiles together with it.
 ## Features
 
 - **Live tile grid** – pin apps to Start as tiles; long-press a tile to resize it
-  (drag the corner), move it to the front, switch it to **Grayscale**, or unpin it.
+  (drag the corner), move it to the front, or unpin it.
 - **To-do tile** – a built-in tile for quick tasks: add, edit, check off and delete.
 - **All apps** – the app list below the tiles is hidden by default. Touch or drag the
   **index bar** on the right edge (`#` for digits, then only the letters that have apps) to
@@ -55,7 +55,7 @@ on Start's tiles together with it.
 - **World clock header** – the header shows a time-zone selector (default **MST**) with the
   current time beside it in 24-hour format. Tap the zone to pick another one; the choice is saved.
 - **Options menu** (circle button, top right) – pick 2, 3 or 4 tiles per row from the
-  **Tiles per row ▾** drop-down, restore the to-do tile, and set or remove the launcher as the
+  **Tiles per row ▾** drop-down, turn **Grayscale tiles** on or off for all tiles, restore the to-do tile, and set or remove the launcher as the
   default home app.
 
 ## Requirements

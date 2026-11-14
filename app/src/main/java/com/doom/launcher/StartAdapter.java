@@ -91,6 +91,8 @@ final class StartAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
     private String resizingKey;
     private int tilesPerRow;
     private boolean scrollTodosToEnd;
+    /** Draw every tile in shades of gray. */
+    private boolean grayscale;
     /** Index section whose apps are highlighted, or null. */
     private String highlightSection;
 
@@ -106,6 +108,10 @@ final class StartAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
 
     void setTilesPerRow(int tilesPerRow) {
         this.tilesPerRow = tilesPerRow;
+    }
+
+    void setGrayscale(boolean grayscale) {
+        this.grayscale = grayscale;
     }
 
     void submit(List<Item> items, List<LauncherStore.Pin> pins, Map<String, AppInfo> apps,
@@ -201,7 +207,7 @@ final class StartAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
                     if (app == null) continue;
                     tile = createAppTile(inflater, pin, app);
                 }
-                if (pin.grayscale) applyGrayscale(tile);
+                if (grayscale) applyGrayscale(tile);
                 grid.addTile(tile, pin);
             }
             grid.setEditingKey(resizingKey);
