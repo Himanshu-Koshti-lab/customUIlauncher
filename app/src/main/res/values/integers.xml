@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Tiles-per-row choices. Tablets (values-sw600dp) get more, smaller columns. -->
+    <integer name="min_tiles_per_row">2</integer>
+    <integer name="max_tiles_per_row">4</integer>
+    <integer name="default_tiles_per_row">2</integer>
+    <!-- Tablets keep their own saved tile count so a phone-sized value isn't reused. -->
+    <bool name="is_tablet">false</bool>
+    <!-- Largest icon on an app tile, in dp. -->
+    <integer name="max_tile_icon_dp">56</integer>
+</resources>

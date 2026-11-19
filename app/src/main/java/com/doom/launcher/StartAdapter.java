@@ -72,6 +72,9 @@ final class StartAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
 
         void onResizeFinished(LauncherStore.Pin pin);
 
+        /** Tiles were dragged into a new order; {@code keys} are the pin keys in that order. */
+        void onTilesReordered(List<String> keys);
+
         void onTodoToggled(int index, boolean done);
 
         void onTodoEdit(int index);
@@ -184,6 +187,19 @@ final class StartAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
             super(grid);
             this.grid = grid;
             grid.setResizeListener(listener::onResizeFinished);
+            grid.setReorderListener(new TileGridLayout.ReorderListener() {
+                @Override
+                public void onTilesReordered(List<String> keys) {
+                    listener.onTilesReordered(keys);
+                }
+
+                @Override
+                public void onTileHeld(View tile) {
+                    // Long-press without moving: show the tile's menu as before.
+                    Object menu = tile.getTag(R.id.tile_menu);
+                    if (menu instanceof Runnable) ((Runnable) menu).run();
+                }
+            });
         }
 
         void bind() {
@@ -211,13 +227,18 @@ final class StartAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
             icon.setImageDrawable(app.newIcon());
             label.setText(app.label);
 
-            // Smaller cells get a smaller icon and label so they don't look crowded.
-            float density = tile.getResources().getDisplayMetrics().density;
-            int iconDp = tilesPerRow <= 2 ? 56 : tilesPerRow == 3 ? 44 : 34;
+            // Icon and label scale with the cell size (screen width / columns), capped so big
+            // tablet cells don't get oversized icons.
+            android.content.res.Resources res = tile.getResources();
+            float density = res.getDisplayMetrics().density;
+            int gridPaddingDp = 42; // start_grid paddingStart + paddingEnd
+            float cellDp = (res.getConfiguration().screenWidthDp - gridPaddingDp) / (float) tilesPerRow;
+            int maxIconDp = res.getInteger(R.integer.max_tile_icon_dp);
+            int iconDp = Math.max(24, Math.min(maxIconDp, Math.round(cellDp * 0.34f)));
             ViewGroup.LayoutParams lp = icon.getLayoutParams();
             lp.width = lp.height = Math.round(iconDp * density);
-            label.setTextSize(tilesPerRow <= 2 ? 13 : tilesPerRow == 3 ? 12 : 10);
-            int labelMargin = Math.round((tilesPerRow >= 4 ? 4 : 8) * density);
+            label.setTextSize(cellDp >= 150 ? 13 : cellDp >= 110 ? 12 : 10);
+            int labelMargin = Math.round((cellDp < 100 ? 4 : 8) * density);
             ((ViewGroup.MarginLayoutParams) label.getLayoutParams())
                     .setMargins(labelMargin, labelMargin, labelMargin, labelMargin);
 
@@ -225,8 +246,9 @@ final class StartAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
                 if (resizingKey != null) listener.onTapWhileResizing();
                 else listener.onOpen(app, v);
             });
+            tile.setTag(R.id.tile_menu, (Runnable) () -> listener.onTileLongPress(pin, app, tile));
             tile.setOnLongClickListener(v -> {
-                listener.onTileLongPress(pin, app, v);
+                dragOrShowMenu(tile);
                 return true;
             });
             return tile;
@@ -284,7 +306,7 @@ final class StartAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
                     else listener.onTodoEdit(index);
                 });
                 text.setOnLongClickListener(v -> {
-                    listener.onTileLongPress(pin, null, tile);
+                    dragOrShowMenu(tile);
                     return true;
                 });
                 list.addView(row);
@@ -293,11 +315,19 @@ final class StartAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
             tile.setOnClickListener(v -> {
                 if (resizingKey != null) listener.onTapWhileResizing();
             });
+            tile.setTag(R.id.tile_menu, (Runnable) () -> listener.onTileLongPress(pin, null, tile));
             tile.setOnLongClickListener(v -> {
-                listener.onTileLongPress(pin, null, v);
+                dragOrShowMenu(tile);
                 return true;
             });
             return tile;
+        }
+
+        /** Long-press: start a move-drag; the menu shows if the tile is released in place. */
+        private void dragOrShowMenu(View tile) {
+            if (resizingKey == null && grid.startTileDrag(tile)) return;
+            Object menu = tile.getTag(R.id.tile_menu);
+            if (menu instanceof Runnable) ((Runnable) menu).run();
         }
     }
 

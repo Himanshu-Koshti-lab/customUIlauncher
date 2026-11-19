@@ -23,8 +23,6 @@ final class LauncherStore {
     private static final String KEY_TODO_DONE = "todo_done_";
     private static final int LEGACY_TODO_SLOTS = 3;
 
-    static final int MIN_TILES_PER_ROW = 2;
-    static final int MAX_TILES_PER_ROW = 4;
     /** Tallest a tile may be dragged, in grid cells. */
     static final int MAX_TILE_ROWS = 4;
 
@@ -59,21 +57,31 @@ final class LauncherStore {
     }
 
     private final SharedPreferences prefs;
+    /** Tiles-per-row range for this screen size (phones 2-4, tablets more). */
+    final int minTilesPerRow;
+    final int maxTilesPerRow;
+    private final int defaultTilesPerRow;
+    private final String tilesPerRowKey;
 
     LauncherStore(Context context) {
         prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        minTilesPerRow = context.getResources().getInteger(R.integer.min_tiles_per_row);
+        maxTilesPerRow = context.getResources().getInteger(R.integer.max_tiles_per_row);
+        defaultTilesPerRow = context.getResources().getInteger(R.integer.default_tiles_per_row);
+        tilesPerRowKey = context.getResources().getBoolean(R.bool.is_tablet)
+                ? KEY_TILES_PER_ROW + "_tablet" : KEY_TILES_PER_ROW;
     }
 
     // ---- Settings ---------------------------------------------------------------------------
 
-    /** Number of 1×1 tiles that fit in one row (2, 3 or 4). */
+    /** Number of 1×1 tiles that fit in one row. A saved value outside this screen's range falls back to the default. */
     int getTilesPerRow() {
-        int n = prefs.getInt(KEY_TILES_PER_ROW, MIN_TILES_PER_ROW);
-        return Math.max(MIN_TILES_PER_ROW, Math.min(MAX_TILES_PER_ROW, n));
+        int n = prefs.getInt(tilesPerRowKey, defaultTilesPerRow);
+        return n < minTilesPerRow || n > maxTilesPerRow ? defaultTilesPerRow : n;
     }
 
     void setTilesPerRow(int n) {
-        prefs.edit().putInt(KEY_TILES_PER_ROW, n).apply();
+        prefs.edit().putInt(tilesPerRowKey, n).apply();
     }
 
     /** Time-zone ID (or "device") shown in the header clock, or null if never chosen. */

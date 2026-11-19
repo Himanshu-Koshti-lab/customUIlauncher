@@ -5,13 +5,17 @@ import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.util.AttributeSet;
+import android.view.DragEvent;
+import android.view.HapticFeedbackConstants;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ImageView;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Windows 8 style tile grid. Each child carries a {@link LauncherStore.Pin} as its tag giving its
@@ -20,6 +24,9 @@ import java.util.List;
  *
  * <p>One tile at a time can be in "resize mode": it gets a white outline and a corner handle that
  * can be dragged to grow or shrink the tile, snapping to whole cells.
+ *
+ * <p>Long-press + drag moves a tile: the others slide out of the way as it passes over them.
+ * Releasing without moving reports {@link ReorderListener#onTileHeld} so a menu can be shown.
  */
 public class TileGridLayout extends ViewGroup {
 
@@ -27,7 +34,26 @@ public class TileGridLayout extends ViewGroup {
         void onResizeFinished(LauncherStore.Pin pin);
     }
 
+    interface ReorderListener {
+        /** A drag changed the tile order; {@code keys} are the pin keys in their new order. */
+        void onTilesReordered(List<String> keys);
+
+        /** A long-press ended without the tile being moved. */
+        void onTileHeld(View tile);
+    }
+
     private int columns = 2;
+    /** Tiles in packing order (independent of child order, so a drag never re-adds views). */
+    private final List<View> tiles = new ArrayList<>();
+    private ReorderListener reorderListener;
+    private View draggingTile;
+    /** Tile last swapped with, ignored until the finger leaves it (stops back-and-forth swaps). */
+    private View lastSwapTarget;
+    private boolean dragMoved;
+    private final int autoScrollEdge;
+    private final int autoScrollStep;
+    /** Tile positions before a reorder, so the next layout can slide tiles to their new spots. */
+    private final Map<View, int[]> oldPositions = new HashMap<>();
     private final int gap;          // margin around each tile (half the gap between tiles)
     private final int handleSize;
     private float cellSize;
@@ -50,6 +76,9 @@ public class TileGridLayout extends ViewGroup {
         float density = getResources().getDisplayMetrics().density;
         gap = Math.round(3 * density);
         handleSize = Math.round(30 * density);
+        autoScrollEdge = Math.round(64 * density);
+        autoScrollStep = Math.round(24 * density);
+        setOnDragListener(this::onDrag);
 
         outlinePaint.setStyle(Paint.Style.STROKE);
         outlinePaint.setStrokeWidth(2 * density);
@@ -73,14 +102,21 @@ public class TileGridLayout extends ViewGroup {
         this.resizeListener = listener;
     }
 
+    void setReorderListener(ReorderListener listener) {
+        this.reorderListener = listener;
+    }
+
     /** Remove all tiles (and the resize handle). */
     void clearTiles() {
         editingTile = null;
+        tiles.clear();
+        oldPositions.clear();
         removeAllViews();
     }
 
     void addTile(View tile, LauncherStore.Pin pin) {
         tile.setTag(pin);
+        tiles.add(tile);
         addView(tile);
     }
 
@@ -121,10 +157,9 @@ public class TileGridLayout extends ViewGroup {
         List<boolean[]> occupied = new ArrayList<>();
         int usedRows = 0;
 
-        for (int i = 0; i < getChildCount(); i++) {
-            View child = getChildAt(i);
+        for (View child : tiles) {
             LauncherStore.Pin pin = pinOf(child);
-            if (pin == null) continue; // the resize handle
+            if (pin == null) continue;
 
             Slot slot = new Slot();
             slot.cols = Math.min(Math.max(1, pin.cols), columns);
@@ -182,15 +217,23 @@ public class TileGridLayout extends ViewGroup {
     protected void onLayout(boolean changed, int l, int t, int r, int b) {
         int left0 = getPaddingLeft();
         int top0 = getPaddingTop();
-        for (int i = 0; i < getChildCount(); i++) {
-            View child = getChildAt(i);
+        for (View child : tiles) {
             Object tag = child.getTag(R.id.tile_slot);
-            if (child == handle || !(tag instanceof Slot)) continue;
+            if (!(tag instanceof Slot)) continue;
             Slot s = (Slot) tag;
             int left = left0 + Math.round(s.col * cellSize) + gap;
             int top = top0 + Math.round(s.row * cellSize) + gap;
             child.layout(left, top, left + child.getMeasuredWidth(), top + child.getMeasuredHeight());
+
+            int[] old = oldPositions.get(child);
+            if (old != null && (old[0] != left || old[1] != top)) {
+                // Slide from where it was to its new cell.
+                child.setTranslationX(old[0] - left + child.getTranslationX());
+                child.setTranslationY(old[1] - top + child.getTranslationY());
+                child.animate().translationX(0).translationY(0).setDuration(180).start();
+            }
         }
+        oldPositions.clear();
         if (editingTile != null && handle.getParent() == this) {
             // Bottom-right corner, slightly overhanging the tile so it's easy to grab.
             int hl = editingTile.getRight() - handleSize + gap;
@@ -208,6 +251,107 @@ public class TileGridLayout extends ViewGroup {
                     editingTile.getRight() - inset, editingTile.getBottom() - inset, outlinePaint);
             // Draw the handle again so it sits above the outline.
             if (handle.getParent() == this) drawChild(canvas, handle, getDrawingTime());
+        }
+    }
+
+    // ---- Drag to move -----------------------------------------------------------------------
+
+    /** Start dragging {@code tile} (call from its long-click). Returns false if no drag started. */
+    boolean startTileDrag(View tile) {
+        if (!tiles.contains(tile) || draggingTile != null) return false;
+        draggingTile = tile;
+        lastSwapTarget = null;
+        dragMoved = false;
+        boolean started = tile.startDragAndDrop(null, new DragShadowBuilder(tile), tile,
+                View.DRAG_FLAG_OPAQUE);
+        if (!started) {
+            draggingTile = null;
+            return false;
+        }
+        tile.setAlpha(0.3f); // leaves a faint placeholder where the tile will land
+        performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
+        return true;
+    }
+
+    private boolean onDrag(View v, DragEvent e) {
+        if (draggingTile == null || e.getLocalState() != draggingTile) return false;
+        switch (e.getAction()) {
+            case DragEvent.ACTION_DRAG_LOCATION:
+                moveDraggedTileTo(e.getX(), e.getY());
+                autoScroll(e.getY());
+                break;
+            case DragEvent.ACTION_DRAG_EXITED:
+                lastSwapTarget = null;
+                break;
+            case DragEvent.ACTION_DRAG_ENDED:
+                finishDrag();
+                break;
+        }
+        return true;
+    }
+
+    private void moveDraggedTileTo(float x, float y) {
+        View target = null;
+        for (View t : tiles) {
+            if (t != draggingTile && x >= t.getLeft() && x < t.getRight()
+                    && y >= t.getTop() && y < t.getBottom()) {
+                target = t;
+                break;
+            }
+        }
+        int to;
+        if (target != null) {
+            if (target == lastSwapTarget) return;
+            to = tiles.indexOf(target);
+        } else {
+            lastSwapTarget = null;
+            // Over empty space after the last tile: move to the end.
+            View last = tiles.get(tiles.size() - 1);
+            Object tag = last.getTag(R.id.tile_slot);
+            if (last == draggingTile || !(tag instanceof Slot) || cellSize <= 0) return;
+            Slot ls = (Slot) tag;
+            int col = (int) ((x - getPaddingLeft()) / cellSize);
+            int row = (int) ((y - getPaddingTop()) / cellSize);
+            if (getLayoutDirection() == LAYOUT_DIRECTION_RTL) col = columns - 1 - col;
+            boolean afterLast = row > ls.row || (row == ls.row && col >= ls.col + ls.cols);
+            if (!afterLast) return;
+            to = tiles.size() - 1;
+        }
+
+        for (View t : tiles) oldPositions.put(t, new int[]{t.getLeft(), t.getTop()});
+        tiles.remove(draggingTile);
+        tiles.add(to, draggingTile);
+        lastSwapTarget = target;
+        dragMoved = true;
+        performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK);
+        requestLayout();
+    }
+
+    /** Scroll the Start list when dragging near its top or bottom edge. */
+    private void autoScroll(float y) {
+        if (!(getParent() instanceof View)) return;
+        View list = (View) getParent();
+        float inList = y + getTop();
+        if (inList < autoScrollEdge) list.scrollBy(0, -autoScrollStep);
+        else if (inList > list.getHeight() - autoScrollEdge) list.scrollBy(0, autoScrollStep);
+    }
+
+    private void finishDrag() {
+        View tile = draggingTile;
+        draggingTile = null;
+        lastSwapTarget = null;
+        if (tile == null) return;
+        tile.setAlpha(1f);
+        if (reorderListener == null) return;
+        if (dragMoved) {
+            List<String> keys = new ArrayList<>();
+            for (View t : tiles) {
+                LauncherStore.Pin pin = pinOf(t);
+                if (pin != null) keys.add(pin.key);
+            }
+            reorderListener.onTilesReordered(keys);
+        } else {
+            reorderListener.onTileHeld(tile);
         }
     }
 
