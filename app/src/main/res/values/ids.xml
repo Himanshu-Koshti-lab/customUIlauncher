@@ -2,4 +2,6 @@
 <resources>
     <!-- View tag holding a tile's packed grid position (TileGridLayout). -->
     <item name="tile_slot" type="id" />
+    <!-- View tag holding a Runnable that shows a tile's long-press menu (StartAdapter). -->
+    <item name="tile_menu" type="id" />
 </resources>

@@ -17,7 +17,7 @@ final class AppInfo {
         this.component = component;
         this.user = user;
         this.icon = icon;
-        this.tileColor = MetroColors.forKey(component.getPackageName());
+        this.tileColor = IconColors.tileColor(icon, component.getPackageName());
     }
 
     /** Stable key used for persisting pins. */
