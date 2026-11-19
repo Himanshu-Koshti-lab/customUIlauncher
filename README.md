@@ -9,6 +9,17 @@ A Windows 8 / Metro-style home screen launcher for Android.
   <img src="docs/screenshots/1.0.3-tiles-per-row.png" width="200" alt="Tiles per row drop-down with 2, 3 and 4 tiles; 4 is selected">
 </p>
 
+## What's new in 1.0.4
+
+- **Tablet layout** – on tablets the tiles-per-row drop-down offers 4 to 10 tiles (8 by default)
+  so tiles and icons are no longer oversized. Tile icons and labels now scale with the tile size.
+- **Drag to rearrange** – long-press a tile and drag it; the other tiles slide out of the way and
+  the new order is saved. Release without moving to get the tile menu as before.
+- **Sort tiles A–Z** – a new options-menu entry puts app tiles in alphabetical order (the to-do
+  tile stays first, tile sizes are kept).
+- **Tile colours match app icons** – each tile takes its colour from its app's icon; grey or
+  black-and-white icons get a dark grey tile.
+
 ## What's new in 1.0.3
 
 - **Tiles per row drop-down** – the options menu now has a single **Tiles per row: N ▾** entry
@@ -45,8 +56,9 @@ on Start's tiles together with it.
 
 ## Features
 
-- **Live tile grid** – pin apps to Start as tiles; long-press a tile to resize it
-  (drag the corner), move it to the front, or unpin it.
+- **Live tile grid** – pin apps to Start as tiles, coloured to match each app's icon.
+  Long-press and drag a tile to move it; long-press and release to resize it (drag the
+  corner), move it to the front, or unpin it.
 - **To-do tile** – a built-in tile for quick tasks: add, edit, check off and delete.
 - **All apps** – the app list below the tiles is hidden by default. Touch or drag the
   **index bar** on the right edge (`#` for digits, then only the letters that have apps) to
@@ -54,9 +66,9 @@ on Start's tiles together with it.
   Long-press an app to pin it, open App info, or uninstall.
 - **World clock header** – the header shows a time-zone selector (default **MST**) with the
   current time beside it in 24-hour format. Tap the zone to pick another one; the choice is saved.
-- **Options menu** (circle button, top right) – pick 2, 3 or 4 tiles per row from the
-  **Tiles per row ▾** drop-down, restore the to-do tile, and set or remove the launcher as the
-  default home app.
+- **Options menu** (circle button, top right) – pick the number of tiles per row from the
+  **Tiles per row ▾** drop-down (2–4 on phones, 4–10 on tablets), sort tiles A–Z, restore the
+  to-do tile, and set or remove the launcher as the default home app.
 
 ## Requirements
 
@@ -82,4 +94,4 @@ the **circle button → Set as default**.
 | `TileZoomAnimator.java` | Per-tile zoom when launching apps and returning home |
 | `AppRepository.java` | Loads installed launchable apps |
 | `LauncherStore.java` | Persists pins, to-dos and settings |
-| `MetroColors.java` | Tile colours |
+| `IconColors.java` / `MetroColors.java` | Tile colours from app icons / fallback palette |
