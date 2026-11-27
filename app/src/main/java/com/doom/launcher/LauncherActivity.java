@@ -43,6 +43,7 @@ import androidx.lifecycle.Lifecycle;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
+import java.text.Collator;
 import java.time.DateTimeException;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
@@ -73,6 +74,7 @@ public class LauncherActivity extends AppCompatActivity implements StartAdapter.
     private static final int MENU_GROUP_TILES = 1;
     private static final int MENU_TILES_PER_ROW = 98;
     private static final int MENU_SHOW_TODO = 99;
+    private static final int MENU_SORT_TILES = 97;
     private static final int MENU_DEFAULT_HOME = 100;
     private static final int MENU_REMOVE_DEFAULT_HOME = 101;
 
@@ -365,8 +367,9 @@ public class LauncherActivity extends AppCompatActivity implements StartAdapter.
 
     private LauncherStore.Pin newTodoPin() {
         int columns = store.getTilesPerRow();
-        // Full width; tall enough for 3 tasks on smaller cells.
-        return new LauncherStore.Pin(LauncherStore.TODO_KEY, columns, columns <= 2 ? 1 : 2);
+        // Full width on phones (at most 4 cells wide on tablets); tall enough for 3 tasks on smaller cells.
+        int cols = Math.min(columns, 4);
+        return new LauncherStore.Pin(LauncherStore.TODO_KEY, cols, cols <= 2 ? 1 : 2);
     }
 
     private boolean containsTodo() {
@@ -521,6 +524,10 @@ public class LauncherActivity extends AppCompatActivity implements StartAdapter.
         menu.add(Menu.NONE, MENU_TILES_PER_ROW, 0,
                 getString(R.string.tiles_per_row, store.getTilesPerRow()));
 
+        if (pins.size() > 1) {
+            menu.add(Menu.NONE, MENU_SORT_TILES, 1, R.string.sort_tiles_az);
+        }
+
         if (!containsTodo()) {
             menu.add(Menu.NONE, MENU_SHOW_TODO, 9, R.string.show_todo_tile);
         }
@@ -535,6 +542,8 @@ public class LauncherActivity extends AppCompatActivity implements StartAdapter.
             int id = menuItem.getItemId();
             if (id == MENU_TILES_PER_ROW) {
                 showTilesPerRowMenu(anchor);
+            } else if (id == MENU_SORT_TILES) {
+                sortTilesAlphabetically();
             } else if (id == MENU_DEFAULT_HOME) {
                 requestDefaultHome();
             } else if (id == MENU_REMOVE_DEFAULT_HOME) {
@@ -550,12 +559,30 @@ public class LauncherActivity extends AppCompatActivity implements StartAdapter.
         popup.show();
     }
 
+    /** Order pinned app tiles A–Z by name (the to-do tile stays first). Keeps each tile's size. */
+    private void sortTilesAlphabetically() {
+        Map<String, AppInfo> byKey = appsByKey();
+        Collator collator = Collator.getInstance();
+        collator.setStrength(Collator.PRIMARY); // ignore case and accents
+        pins.sort((a, b) -> {
+            if (a.isTodo() != b.isTodo()) return a.isTodo() ? -1 : 1;
+            AppInfo appA = byKey.get(a.key);
+            AppInfo appB = byKey.get(b.key);
+            String la = appA == null ? "" : appA.label.toString();
+            String lb = appB == null ? "" : appB.label.toString();
+            return collator.compare(la, lb);
+        });
+        store.savePins(pins);
+        render();
+        list.scrollToPosition(0);
+    }
+
     /** Drop-down of tile counts, current one checked. */
     private void showTilesPerRowMenu(View anchor) {
         PopupMenu popup = new PopupMenu(this, anchor);
         Menu menu = popup.getMenu();
         int current = store.getTilesPerRow();
-        for (int n = LauncherStore.MIN_TILES_PER_ROW; n <= LauncherStore.MAX_TILES_PER_ROW; n++) {
+        for (int n = store.minTilesPerRow; n <= store.maxTilesPerRow; n++) {
             // Item id == tile count, so the click handler can use it directly.
             menu.add(MENU_GROUP_TILES, n, n, getString(R.string.tiles_per_row_option, n))
                     .setChecked(n == current);
@@ -786,6 +813,23 @@ public class LauncherActivity extends AppCompatActivity implements StartAdapter.
             return true;
         });
         popup.show();
+    }
+
+    @Override
+    public void onTilesReordered(List<String> keys) {
+        Map<String, LauncherStore.Pin> byKey = new HashMap<>();
+        for (LauncherStore.Pin pin : pins) byKey.put(pin.key, pin);
+        List<LauncherStore.Pin> reordered = new ArrayList<>();
+        for (String key : keys) {
+            LauncherStore.Pin pin = byKey.remove(key);
+            if (pin != null) reordered.add(pin);
+        }
+        // Keep any pin the grid didn't show (e.g. app still loading) at the end, in its old order.
+        for (LauncherStore.Pin pin : pins) if (byKey.containsKey(pin.key)) reordered.add(pin);
+        pins.clear();
+        pins.addAll(reordered);
+        store.savePins(pins);
+        render();
     }
 
     /** @param app null for the to-do tile */

@@ -1,6 +1,6 @@
 package com.doom.launcher;
 
-/** Windows 8 accent colors; each app gets a stable one based on its package name. */
+/** Windows 8 accent colors; fallback tile color (stable per package) when an icon can't be read. */
 final class MetroColors {
     private static final int[] PALETTE = {
             0xFF2D89EF, // blue
